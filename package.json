@@ -4,10 +4,7 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "start": "npm run build && node_modules/.bin/nodemon --watch server server/index.js",
-    "watch": "node_modules/.bin/gulp watch",
-    "build": "node_modules/.bin/gulp build",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "start": "node index.js",
   },
   "repository": {
     "type": "git",
