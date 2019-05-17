@@ -19,17 +19,8 @@
     "url": "https://github.com/jorgelserve/conmutacion/issues"
   },
   "homepage": "https://github.com/jorgelserve/conmutacion#readme",
-  "dependencies": {},
-  "devDependencies": {
-    "babel-core": "^6.26.3",
-    "babel-plugin-syntax-async-functions": "^6.13.0",
-    "babel-plugin-transform-regenerator": "^6.26.0",
-    "babel-preset-env": "^1.7.0",
-    "babelify": "^8.0.0",
-    "browserify": "^16.2.3",
-    "gulp": "^4.0.2",
-    "gulp-rename": "^1.4.0",
-    "vinyl-source-stream": "^2.0.0",
-    "watchify": "^3.11.1"
-  }
+  "dependencies": {
+    "express": "^4.17.0"
+  },
+  "devDependencies": {}
 }

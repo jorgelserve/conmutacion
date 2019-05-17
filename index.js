@@ -1,11 +1,15 @@
 const express  = require('express')
 const app = express()
 
-app.set('view engine', 'pug')
-app.use(express.static('public'));
+
 
 app.get('/', (req, res) => {
 	res.send('hola mundo')
+})
+
+app.get('/a/:id', (req, res) => {
+	res.send('hola mundo')
+	console.log(`nuevo prestamo por parte del id ${req.params.id}`)
 })
 
 var port = process.env.PORT || 3000
