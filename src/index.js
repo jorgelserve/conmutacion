@@ -1,1 +1,1 @@
-alert(new Date())
+require('./homepage')
