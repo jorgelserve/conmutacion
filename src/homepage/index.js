@@ -1,8 +1,4 @@
-const socket = io.connect('/.', {
-	'forceNew': true
-})
+const yo = require('yo-yo')
 
 
-socket.on('test', (data) => {
-	console.log(data)
-})
+document.getElementById('header').appendChild(require('./header.js'))
