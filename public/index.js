@@ -34,10 +34,7 @@ var ERRORS = (_a = {},
     _a["invalid-app-argument" /* INVALID_APP_ARGUMENT */] = 'firebase.{$name}() takes either no argument or a ' +
         'Firebase App instance.',
     _a);
-var appErrors = new util.ErrorFactory('app', 'Firebase', ERRORS);
-function error(code, args) {
-    throw appErrors.create(code, args);
-}
+var ERROR_FACTORY = new util.ErrorFactory('app', 'Firebase', ERRORS);
 
 /**
  * @license
@@ -218,7 +215,7 @@ var FirebaseAppImpl = /** @class */ (function () {
      */
     FirebaseAppImpl.prototype.checkDestroyed_ = function () {
         if (this.isDeleted_) {
-            error("app-deleted" /* APP_DELETED */, { name: this.name_ });
+            throw ERROR_FACTORY.create("app-deleted" /* APP_DELETED */, { name: this.name_ });
         }
     };
     return FirebaseAppImpl;
@@ -228,6 +225,8 @@ var FirebaseAppImpl = /** @class */ (function () {
 (FirebaseAppImpl.prototype.name && FirebaseAppImpl.prototype.options) ||
     FirebaseAppImpl.prototype.delete ||
     console.log('dc');
+
+var version = "6.0.4";
 
 /**
  * @license
@@ -268,7 +267,7 @@ function createFirebaseNamespaceCore(firebaseAppImpl) {
         initializeApp: initializeApp,
         app: app,
         apps: null,
-        SDK_VERSION: '6.0.2',
+        SDK_VERSION: version,
         INTERNAL: {
             registerService: registerService,
             removeApp: removeApp,
@@ -306,7 +305,7 @@ function createFirebaseNamespaceCore(firebaseAppImpl) {
     function app(name) {
         name = name || DEFAULT_ENTRY_NAME;
         if (!contains(apps, name)) {
-            error("no-app" /* NO_APP */, { name: name });
+            throw ERROR_FACTORY.create("no-app" /* NO_APP */, { name: name });
         }
         return apps[name];
     }
@@ -323,10 +322,10 @@ function createFirebaseNamespaceCore(firebaseAppImpl) {
         }
         var name = config.name;
         if (typeof name !== 'string' || !name) {
-            error("bad-app-name" /* BAD_APP_NAME */, { name: String(name) });
+            throw ERROR_FACTORY.create("bad-app-name" /* BAD_APP_NAME */, { name: String(name) });
         }
         if (contains(apps, name)) {
-            error("duplicate-app" /* DUPLICATE_APP */, { name: name });
+            throw ERROR_FACTORY.create("duplicate-app" /* DUPLICATE_APP */, { name: name });
         }
         var app = new firebaseAppImpl(options, config, namespace);
         apps[name] = app;
@@ -351,7 +350,7 @@ function createFirebaseNamespaceCore(firebaseAppImpl) {
         if (allowMultipleInstances === void 0) { allowMultipleInstances = false; }
         // Cannot re-register a service that already exists
         if (factories[name]) {
-            error("duplicate-service" /* DUPLICATE_SERVICE */, { name: name });
+            throw ERROR_FACTORY.create("duplicate-service" /* DUPLICATE_SERVICE */, { name: name });
         }
         // Capture the service factory for later service instantiation
         factories[name] = createService;
@@ -369,7 +368,9 @@ function createFirebaseNamespaceCore(firebaseAppImpl) {
             if (typeof appArg[name] !== 'function') {
                 // Invalid argument.
                 // This happens in the following case: firebase.storage('gs:/')
-                error("invalid-app-argument" /* INVALID_APP_ARGUMENT */, { name: name });
+                throw ERROR_FACTORY.create("invalid-app-argument" /* INVALID_APP_ARGUMENT */, {
+                    name: name
+                });
             }
             // Forward service instance lookup to the FirebaseApp.
             return appArg[name]();
@@ -16288,7 +16289,7 @@ exports.registerDatabase = registerDatabase;
 
 
 }).call(this,require('_process'))
-},{"@firebase/app":1,"@firebase/logger":7,"@firebase/util":11,"_process":25,"tslib":26}],4:[function(require,module,exports){
+},{"@firebase/app":1,"@firebase/logger":7,"@firebase/util":11,"_process":15,"tslib":26}],4:[function(require,module,exports){
 (function (process){
 'use strict';
 
@@ -23218,6 +23219,92 @@ var JsonProtoSerializer = /** @class */ (function () {
 
 /**
  * @license
+ * Copyright 2019 Google Inc.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+var NoopConnectivityMonitor = /** @class */ (function () {
+    function NoopConnectivityMonitor() {
+    }
+    NoopConnectivityMonitor.prototype.addCallback = function (callback) {
+        // No-op.
+    };
+    NoopConnectivityMonitor.prototype.shutdown = function () {
+        // No-op.
+    };
+    return NoopConnectivityMonitor;
+}());
+
+/**
+ * @license
+ * Copyright 2019 Google Inc.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+var LOG_TAG = 'ConnectivityMonitor';
+/**
+ * Browser implementation of ConnectivityMonitor.
+ */
+var BrowserConnectivityMonitor = /** @class */ (function () {
+    function BrowserConnectivityMonitor() {
+        var _this = this;
+        this.networkAvailableListener = function () { return _this.onNetworkAvailable(); };
+        this.networkUnavailableListener = function () {
+            return _this.onNetworkUnavailable();
+        };
+        this.callbacks = [];
+        this.configureNetworkMonitoring();
+    }
+    BrowserConnectivityMonitor.prototype.addCallback = function (callback) {
+        this.callbacks.push(callback);
+    };
+    BrowserConnectivityMonitor.prototype.shutdown = function () {
+        window.removeEventListener('online', this.networkAvailableListener);
+        window.removeEventListener('offline', this.networkUnavailableListener);
+    };
+    BrowserConnectivityMonitor.prototype.configureNetworkMonitoring = function () {
+        window.addEventListener('online', this.networkAvailableListener);
+        window.addEventListener('offline', this.networkUnavailableListener);
+    };
+    BrowserConnectivityMonitor.prototype.onNetworkAvailable = function () {
+        debug(LOG_TAG, 'Network connectivity changed: AVAILABLE');
+        for (var _i = 0, _a = this.callbacks; _i < _a.length; _i++) {
+            var callback = _a[_i];
+            callback(0 /* AVAILABLE */);
+        }
+    };
+    BrowserConnectivityMonitor.prototype.onNetworkUnavailable = function () {
+        debug(LOG_TAG, 'Network connectivity changed: UNAVAILABLE');
+        for (var _i = 0, _a = this.callbacks; _i < _a.length; _i++) {
+            var callback = _a[_i];
+            callback(1 /* UNAVAILABLE */);
+        }
+    };
+    return BrowserConnectivityMonitor;
+}());
+
+/**
+ * @license
  * Copyright 2017 Google Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -23291,7 +23378,7 @@ var StreamBridge = /** @class */ (function () {
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-var LOG_TAG = 'Connection';
+var LOG_TAG$1 = 'Connection';
 var RPC_STREAM_SERVICE = 'google.firestore.v1.Firestore';
 var RPC_URL_VERSION = 'v1';
 /** Maps RPC names to the corresponding REST endpoint name. */
@@ -23336,23 +23423,23 @@ var WebChannelConnection = /** @class */ (function () {
                     switch (xhr.getLastErrorCode()) {
                         case webchannelWrapper.ErrorCode.NO_ERROR:
                             var json = xhr.getResponseJson();
-                            debug(LOG_TAG, 'XHR received:', JSON.stringify(json));
+                            debug(LOG_TAG$1, 'XHR received:', JSON.stringify(json));
                             resolve(json);
                             break;
                         case webchannelWrapper.ErrorCode.TIMEOUT:
-                            debug(LOG_TAG, 'RPC "' + rpcName + '" timed out');
+                            debug(LOG_TAG$1, 'RPC "' + rpcName + '" timed out');
                             reject(new FirestoreError(Code.DEADLINE_EXCEEDED, 'Request time out'));
                             break;
                         case webchannelWrapper.ErrorCode.HTTP_ERROR:
                             var status_1 = xhr.getStatus();
-                            debug(LOG_TAG, 'RPC "' + rpcName + '" failed with status:', status_1, 'response text:', xhr.getResponseText());
+                            debug(LOG_TAG$1, 'RPC "' + rpcName + '" failed with status:', status_1, 'response text:', xhr.getResponseText());
                             if (status_1 > 0) {
                                 reject(new FirestoreError(mapCodeFromHttpStatus(status_1), 'Server responded with status ' + xhr.getStatusText()));
                             }
                             else {
                                 // If we received an HTTP_ERROR but there's no status code,
                                 // it's most probably a connection issue
-                                debug(LOG_TAG, 'RPC "' + rpcName + '" failed');
+                                debug(LOG_TAG$1, 'RPC "' + rpcName + '" failed');
                                 reject(new FirestoreError(Code.UNAVAILABLE, 'Connection failed.'));
                             }
                             break;
@@ -23368,11 +23455,11 @@ var WebChannelConnection = /** @class */ (function () {
                     }
                 }
                 finally {
-                    debug(LOG_TAG, 'RPC "' + rpcName + '" completed.');
+                    debug(LOG_TAG$1, 'RPC "' + rpcName + '" completed.');
                 }
             });
             var requestString = JSON.stringify(request);
-            debug(LOG_TAG, 'XHR sending: ', url + ' ' + requestString);
+            debug(LOG_TAG$1, 'XHR sending: ', url + ' ' + requestString);
             // Content-Type: text/plain will avoid preflight requests which might
             // mess with CORS and redirects by proxies. If we add custom headers
             // we will need to change this code to potentially use the
@@ -23448,7 +23535,7 @@ var WebChannelConnection = /** @class */ (function () {
             request['httpHeadersOverwriteParam'] = '$httpHeaders';
         }
         var url = urlParts.join('');
-        debug(LOG_TAG, 'Creating WebChannel: ' + url + ' ' + request);
+        debug(LOG_TAG$1, 'Creating WebChannel: ' + url + ' ' + request);
         // tslint:disable-next-line:no-any Because listen isn't defined on it.
         var channel = webchannelTransport.createWebChannel(url, request);
         // WebChannel supports sending the first message with the handshake - saving
@@ -23465,15 +23552,15 @@ var WebChannelConnection = /** @class */ (function () {
             sendFn: function (msg) {
                 if (!closed) {
                     if (!opened) {
-                        debug(LOG_TAG, 'Opening WebChannel transport.');
+                        debug(LOG_TAG$1, 'Opening WebChannel transport.');
                         channel.open();
                         opened = true;
                     }
-                    debug(LOG_TAG, 'WebChannel sending:', msg);
+                    debug(LOG_TAG$1, 'WebChannel sending:', msg);
                     channel.send(msg);
                 }
                 else {
-                    debug(LOG_TAG, 'Not sending because WebChannel is closed:', msg);
+                    debug(LOG_TAG$1, 'Not sending because WebChannel is closed:', msg);
                 }
             },
             closeFn: function () { return channel.close(); }
@@ -23498,20 +23585,20 @@ var WebChannelConnection = /** @class */ (function () {
         };
         unguardedEventListen(webchannelWrapper.WebChannel.EventType.OPEN, function () {
             if (!closed) {
-                debug(LOG_TAG, 'WebChannel transport opened.');
+                debug(LOG_TAG$1, 'WebChannel transport opened.');
             }
         });
         unguardedEventListen(webchannelWrapper.WebChannel.EventType.CLOSE, function () {
             if (!closed) {
                 closed = true;
-                debug(LOG_TAG, 'WebChannel transport closed');
+                debug(LOG_TAG$1, 'WebChannel transport closed');
                 streamBridge.callOnClose();
             }
         });
         unguardedEventListen(webchannelWrapper.WebChannel.EventType.ERROR, function (err) {
             if (!closed) {
                 closed = true;
-                debug(LOG_TAG, 'WebChannel transport errored:', err);
+                debug(LOG_TAG$1, 'WebChannel transport errored:', err);
                 streamBridge.callOnClose(new FirestoreError(Code.UNAVAILABLE, 'The operation could not be completed'));
             }
         });
@@ -23527,7 +23614,7 @@ var WebChannelConnection = /** @class */ (function () {
                 // tslint:disable-next-line:no-any msgData.error is not typed.
                 msgData.error || (msgData[0] && msgData[0].error);
                 if (error) {
-                    debug(LOG_TAG, 'WebChannel received error:', error);
+                    debug(LOG_TAG$1, 'WebChannel received error:', error);
                     // error.status will be a string like 'OK' or 'NOT_FOUND'.
                     var status_2 = error.status;
                     var code = mapCodeFromRpcStatus(status_2);
@@ -23546,7 +23633,7 @@ var WebChannelConnection = /** @class */ (function () {
                     channel.close();
                 }
                 else {
-                    debug(LOG_TAG, 'WebChannel received:', msgData);
+                    debug(LOG_TAG$1, 'WebChannel received:', msgData);
                     streamBridge.callOnMessage(msgData);
                 }
             }
@@ -23614,6 +23701,14 @@ var BrowserPlatform = /** @class */ (function () {
     });
     BrowserPlatform.prototype.loadConnection = function (databaseInfo) {
         return Promise.resolve(new WebChannelConnection(databaseInfo));
+    };
+    BrowserPlatform.prototype.newConnectivityMonitor = function () {
+        if (this.window) {
+            return new BrowserConnectivityMonitor();
+        }
+        else {
+            return new NoopConnectivityMonitor();
+        }
     };
     BrowserPlatform.prototype.newSerializer = function (databaseId) {
         return new JsonProtoSerializer(databaseId, { useProto3Json: true });
@@ -25027,7 +25122,7 @@ var TargetIdGenerator = /** @class */ (function () {
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-var LOG_TAG$1 = 'SimpleDb';
+var LOG_TAG$2 = 'SimpleDb';
 /**
  * Provides a wrapper around IndexedDb with a simplified interface that uses
  * Promise-like return values to chain operations. Real promises cannot be used
@@ -25049,7 +25144,7 @@ var SimpleDb = /** @class */ (function () {
      */
     SimpleDb.openOrCreate = function (name, version, schemaConverter) {
         assert(SimpleDb.isAvailable(), 'IndexedDB not supported in current environment.');
-        debug(LOG_TAG$1, 'Opening database:', name);
+        debug(LOG_TAG$2, 'Opening database:', name);
         return new PersistencePromise(function (resolve, reject) {
             // TODO(mikelehen): Investigate browser compatibility.
             // https://developer.mozilla.org/en-US/docs/Web/API/IndexedDB_API/Using_IndexedDB
@@ -25079,7 +25174,7 @@ var SimpleDb = /** @class */ (function () {
                 }
             };
             request.onupgradeneeded = function (event) {
-                debug(LOG_TAG$1, 'Database "' + name + '" requires upgrade from version:', event.oldVersion);
+                debug(LOG_TAG$2, 'Database "' + name + '" requires upgrade from version:', event.oldVersion);
                 var db = event.target.result;
                 // We are provided a version upgrade transaction from the request, so
                 // we wrap that in a SimpleDbTransaction to allow use of our friendlier
@@ -25088,14 +25183,14 @@ var SimpleDb = /** @class */ (function () {
                 schemaConverter
                     .createOrUpgrade(db, txn, event.oldVersion, SCHEMA_VERSION)
                     .next(function () {
-                    debug(LOG_TAG$1, 'Database upgrade to version ' + SCHEMA_VERSION + ' complete');
+                    debug(LOG_TAG$2, 'Database upgrade to version ' + SCHEMA_VERSION + ' complete');
                 });
             };
         }).toPromise();
     };
     /** Deletes the specified database. */
     SimpleDb.delete = function (name) {
-        debug(LOG_TAG$1, 'Removing database:', name);
+        debug(LOG_TAG$2, 'Removing database:', name);
         return wrapRequest(window.indexedDB.deleteDatabase(name)).toPromise();
     };
     /** Returns true if IndexedDB is available in the current environment. */
@@ -25294,7 +25389,7 @@ var SimpleDbTransaction = /** @class */ (function () {
             this.completionDeferred.reject(error);
         }
         if (!this.aborted) {
-            debug(LOG_TAG$1, 'Aborting transaction:', error ? error.message : 'Client-initiated abort');
+            debug(LOG_TAG$2, 'Aborting transaction:', error ? error.message : 'Client-initiated abort');
             this.aborted = true;
             this.transaction.abort();
         }
@@ -25332,11 +25427,11 @@ var SimpleDbStore = /** @class */ (function () {
     SimpleDbStore.prototype.put = function (keyOrValue, value) {
         var request;
         if (value !== undefined) {
-            debug(LOG_TAG$1, 'PUT', this.store.name, keyOrValue, value);
+            debug(LOG_TAG$2, 'PUT', this.store.name, keyOrValue, value);
             request = this.store.put(value, keyOrValue);
         }
         else {
-            debug(LOG_TAG$1, 'PUT', this.store.name, '<auto-key>', keyOrValue);
+            debug(LOG_TAG$2, 'PUT', this.store.name, '<auto-key>', keyOrValue);
             request = this.store.put(keyOrValue);
         }
         return wrapRequest(request);
@@ -25349,7 +25444,7 @@ var SimpleDbStore = /** @class */ (function () {
      * @return The key of the value to add.
      */
     SimpleDbStore.prototype.add = function (value) {
-        debug(LOG_TAG$1, 'ADD', this.store.name, value, value);
+        debug(LOG_TAG$2, 'ADD', this.store.name, value, value);
         var request = this.store.add(value);
         return wrapRequest(request);
     };
@@ -25369,12 +25464,12 @@ var SimpleDbStore = /** @class */ (function () {
             if (result === undefined) {
                 result = null;
             }
-            debug(LOG_TAG$1, 'GET', _this.store.name, key, result);
+            debug(LOG_TAG$2, 'GET', _this.store.name, key, result);
             return result;
         });
     };
     SimpleDbStore.prototype.delete = function (key) {
-        debug(LOG_TAG$1, 'DELETE', this.store.name, key);
+        debug(LOG_TAG$2, 'DELETE', this.store.name, key);
         var request = this.store.delete(key);
         return wrapRequest(request);
     };
@@ -25385,7 +25480,7 @@ var SimpleDbStore = /** @class */ (function () {
      * Returns the number of rows in the store.
      */
     SimpleDbStore.prototype.count = function () {
-        debug(LOG_TAG$1, 'COUNT', this.store.name);
+        debug(LOG_TAG$2, 'COUNT', this.store.name);
         var request = this.store.count();
         return wrapRequest(request);
     };
@@ -25399,7 +25494,7 @@ var SimpleDbStore = /** @class */ (function () {
         });
     };
     SimpleDbStore.prototype.deleteAll = function (indexOrRange, range) {
-        debug(LOG_TAG$1, 'DELETE ALL', this.store.name);
+        debug(LOG_TAG$2, 'DELETE ALL', this.store.name);
         var options = this.options(indexOrRange, range);
         options.keysOnly = false;
         var cursor = this.cursor(options);
@@ -27889,7 +27984,7 @@ var PersistenceTransaction = /** @class */ (function () {
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-var LOG_TAG$2 = 'IndexedDbPersistence';
+var LOG_TAG$3 = 'IndexedDbPersistence';
 /**
  * Oldest acceptable age in milliseconds for client metadata before the client
  * is considered inactive and its associated data (such as the remote document
@@ -28304,7 +28399,7 @@ var IndexedDbPersistence = /** @class */ (function () {
         })
             .next(function (canActAsPrimary) {
             if (_this.isPrimary !== canActAsPrimary) {
-                debug(LOG_TAG$2, "Client " + (canActAsPrimary ? 'is' : 'is not') + " eligible for a primary lease.");
+                debug(LOG_TAG$3, "Client " + (canActAsPrimary ? 'is' : 'is not') + " eligible for a primary lease.");
             }
             return canActAsPrimary;
         });
@@ -28404,7 +28499,7 @@ var IndexedDbPersistence = /** @class */ (function () {
     };
     IndexedDbPersistence.prototype.runTransaction = function (action, mode, transactionOperation) {
         var _this = this;
-        debug(LOG_TAG$2, 'Starting transaction:', action);
+        debug(LOG_TAG$3, 'Starting transaction:', action);
         // Do all transactions as readwrite against all object stores, since we
         // are the only reader/writer.
         return this.simpleDb.runTransaction(mode === 'readonly' ? 'readonly' : 'readwrite', ALL_STORES, function (simpleDbTxn) {
@@ -28492,7 +28587,7 @@ var IndexedDbPersistence = /** @class */ (function () {
         var store = primaryClientStore(txn);
         return store.get(DbPrimaryClient.key).next(function (primaryClient) {
             if (_this.isLocalClient(primaryClient)) {
-                debug(LOG_TAG$2, 'Releasing primary lease.');
+                debug(LOG_TAG$3, 'Releasing primary lease.');
                 return store.delete(DbPrimaryClient.key);
             }
             else {
@@ -28579,12 +28674,12 @@ var IndexedDbPersistence = /** @class */ (function () {
         try {
             var isZombied = this.webStorage.getItem(this.zombiedClientLocalStorageKey(clientId)) !==
                 null;
-            debug(LOG_TAG$2, "Client '" + clientId + "' " + (isZombied ? 'is' : 'is not') + " zombied in LocalStorage");
+            debug(LOG_TAG$3, "Client '" + clientId + "' " + (isZombied ? 'is' : 'is not') + " zombied in LocalStorage");
             return isZombied;
         }
         catch (e) {
             // Gracefully handle if LocalStorage isn't working.
-            error(LOG_TAG$2, 'Failed to get zombied client id.', e);
+            error(LOG_TAG$3, 'Failed to get zombied client id.', e);
             return false;
         }
     };
@@ -28638,7 +28733,7 @@ function ignoreIfPrimaryLeaseLoss(err) {
     return tslib_1.__awaiter(this, void 0, void 0, function () {
         return tslib_1.__generator(this, function (_a) {
             if (isPrimaryLeaseLostError(err)) {
-                debug(LOG_TAG$2, 'Unexpectedly lost primary lease');
+                debug(LOG_TAG$3, 'Unexpectedly lost primary lease');
             }
             else {
                 throw err;
@@ -29153,7 +29248,7 @@ var DocReference = /** @class */ (function () {
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-var LOG_TAG$3 = 'LocalStore';
+var LOG_TAG$4 = 'LocalStore';
 /**
  * Local storage in the Firestore client. Coordinates persistence components
  * like the mutation queue and remote document cache to present a
@@ -29506,7 +29601,7 @@ var LocalStore = /** @class */ (function () {
                         changedDocs = changedDocs.insert(key, doc);
                     }
                     else {
-                        debug(LOG_TAG$3, 'Ignoring outdated watch update for ', key, '. Current version:', existingDoc.version, ' Watch version:', doc.version);
+                        debug(LOG_TAG$4, 'Ignoring outdated watch update for ', key, '. Current version:', existingDoc.version, ' Watch version:', doc.version);
                     }
                     if (remoteEvent.resolvedLimboDocuments.has(key)) {
                         promises.push(_this.persistence.referenceDelegate.updateLimboDocument(txn, key));
@@ -30382,7 +30477,7 @@ var MemoryRemoteDocumentChangeBuffer = /** @class */ (function (_super) {
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-var LOG_TAG$4 = 'MemoryPersistence';
+var LOG_TAG$5 = 'MemoryPersistence';
 /**
  * A memory-backed instance of Persistence. Data is stored only in RAM and
  * not persisted across sessions.
@@ -30469,7 +30564,7 @@ var MemoryPersistence = /** @class */ (function () {
     };
     MemoryPersistence.prototype.runTransaction = function (action, mode, transactionOperation) {
         var _this = this;
-        debug(LOG_TAG$4, 'Starting transaction:', action);
+        debug(LOG_TAG$5, 'Starting transaction:', action);
         var txn = new MemoryTransaction(this.listenSequence.next());
         this.referenceDelegate.onTransactionStarted();
         return transactionOperation(txn)
@@ -30715,7 +30810,7 @@ var MemoryLruDelegate = /** @class */ (function () {
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-var LOG_TAG$5 = 'ExponentialBackoff';
+var LOG_TAG$6 = 'ExponentialBackoff';
 /**
  * A helper for running delayed tasks following an exponential backoff curve
  * between attempts.
@@ -30796,7 +30891,7 @@ var ExponentialBackoff = /** @class */ (function () {
         // Guard against the backoff delay already being past.
         var remainingDelayMs = Math.max(0, desiredDelayWithJitterMs - delaySoFarMs);
         if (this.currentBaseMs > 0) {
-            debug(LOG_TAG$5, "Backing off for " + remainingDelayMs + " ms " +
+            debug(LOG_TAG$6, "Backing off for " + remainingDelayMs + " ms " +
                 ("(base delay: " + this.currentBaseMs + " ms, ") +
                 ("delay with jitter: " + desiredDelayWithJitterMs + " ms, ") +
                 ("last attempt: " + delaySoFarMs + " ms ago)"));
@@ -30844,7 +30939,7 @@ var ExponentialBackoff = /** @class */ (function () {
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-var LOG_TAG$6 = 'PersistentStream';
+var LOG_TAG$7 = 'PersistentStream';
 /**
  * PersistentStream can be in one of 5 states (each described in detail below)
  * based on the following state transition diagram:
@@ -31196,7 +31291,7 @@ var PersistentStream = /** @class */ (function () {
     // Visible for tests
     PersistentStream.prototype.handleStreamClose = function (error) {
         assert(this.isStarted(), "Can't handle server close on non-started stream");
-        debug(LOG_TAG$6, "close with error: " + error);
+        debug(LOG_TAG$7, "close with error: " + error);
         this.stream = null;
         // In theory the stream could close cleanly, however, in our current model
         // we never expect this to happen because if we stop a stream ourselves,
@@ -31218,7 +31313,7 @@ var PersistentStream = /** @class */ (function () {
                     return fn();
                 }
                 else {
-                    debug(LOG_TAG$6, 'stream callback skipped by getCloseGuardedDispatcher.');
+                    debug(LOG_TAG$7, 'stream callback skipped by getCloseGuardedDispatcher.');
                     return Promise.resolve();
                 }
             });
@@ -31682,7 +31777,7 @@ var OnlineStateSource;
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-var LOG_TAG$7 = 'OnlineStateTracker';
+var LOG_TAG$8 = 'OnlineStateTracker';
 // To deal with transient failures, we allow multiple stream attempts before
 // giving up and transitioning from OnlineState.Unknown to Offline.
 // TODO(mikelehen): This used to be set to 2 as a mitigation for b/66228394.
@@ -31812,7 +31907,7 @@ var OnlineStateTracker = /** @class */ (function () {
             this.shouldWarnClientIsOffline = false;
         }
         else {
-            debug(LOG_TAG$7, message);
+            debug(LOG_TAG$8, message);
         }
     };
     OnlineStateTracker.prototype.clearOnlineStateTimer = function () {
@@ -31840,7 +31935,7 @@ var OnlineStateTracker = /** @class */ (function () {
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-var LOG_TAG$8 = 'RemoteStore';
+var LOG_TAG$9 = 'RemoteStore';
 // TODO(b/35853402): Negotiate this with the stream.
 var MAX_PENDING_WRITES = 10;
 /**
@@ -31869,7 +31964,8 @@ var RemoteStore = /** @class */ (function () {
      */
     localStore, 
     /** The client-side proxy for interacting with the backend. */
-    datastore, asyncQueue, onlineStateHandler) {
+    datastore, asyncQueue, onlineStateHandler, connectivityMonitor) {
+        var _this = this;
         this.localStore = localStore;
         this.datastore = datastore;
         /**
@@ -31907,6 +32003,23 @@ var RemoteStore = /** @class */ (function () {
          */
         this.networkEnabled = false;
         this.isPrimary = false;
+        this.connectivityMonitor = connectivityMonitor;
+        this.connectivityMonitor.addCallback(function (status) {
+            asyncQueue.enqueueAndForget(function () { return tslib_1.__awaiter(_this, void 0, void 0, function () {
+                return tslib_1.__generator(this, function (_a) {
+                    switch (_a.label) {
+                        case 0:
+                            if (!this.canUseNetwork()) return [3 /*break*/, 2];
+                            debug(LOG_TAG$9, 'Restarting streams for network reachability change.');
+                            return [4 /*yield*/, this.restartNetwork()];
+                        case 1:
+                            _a.sent();
+                            _a.label = 2;
+                        case 2: return [2 /*return*/];
+                    }
+                });
+            }); });
+        });
         this.onlineStateTracker = new OnlineStateTracker(asyncQueue, onlineStateHandler);
         // Create streams (but note they're not started yet).
         this.watchStream = this.datastore.newPersistentWatchStream({
@@ -31989,7 +32102,7 @@ var RemoteStore = /** @class */ (function () {
                     case 2:
                         _a.sent();
                         if (this.writePipeline.length > 0) {
-                            debug(LOG_TAG$8, "Stopping write stream with " + this.writePipeline.length + " pending writes");
+                            debug(LOG_TAG$9, "Stopping write stream with " + this.writePipeline.length + " pending writes");
                             this.writePipeline = [];
                         }
                         this.cleanUpWatchStreamState();
@@ -32003,11 +32116,12 @@ var RemoteStore = /** @class */ (function () {
             return tslib_1.__generator(this, function (_a) {
                 switch (_a.label) {
                     case 0:
-                        debug(LOG_TAG$8, 'RemoteStore shutting down.');
+                        debug(LOG_TAG$9, 'RemoteStore shutting down.');
                         this.networkEnabled = false;
                         return [4 /*yield*/, this.disableNetworkInternal()];
                     case 1:
                         _a.sent();
+                        this.connectivityMonitor.shutdown();
                         // Set the OnlineState to Unknown (rather than Offline) to avoid potentially
                         // triggering spurious listener events with cached data, etc.
                         this.onlineStateTracker.set(OnlineState.Unknown);
@@ -32392,7 +32506,7 @@ var RemoteStore = /** @class */ (function () {
                 // no longer valid. Note that the handshake does not count as a write: see
                 // comments on isPermanentWriteError for details.
                 if (isPermanentError(error.code)) {
-                    debug(LOG_TAG$8, 'RemoteStore error before completed handshake; resetting stream token: ', this.writeStream.lastStreamToken);
+                    debug(LOG_TAG$9, 'RemoteStore error before completed handshake; resetting stream token: ', this.writeStream.lastStreamToken);
                     this.writeStream.lastStreamToken = emptyByteString();
                     return [2 /*return*/, this.localStore
                             .setLastStreamToken(emptyByteString())
@@ -32430,16 +32544,11 @@ var RemoteStore = /** @class */ (function () {
     RemoteStore.prototype.createTransaction = function () {
         return new Transaction(this.datastore);
     };
-    RemoteStore.prototype.handleCredentialChange = function () {
+    RemoteStore.prototype.restartNetwork = function () {
         return tslib_1.__awaiter(this, void 0, void 0, function () {
             return tslib_1.__generator(this, function (_a) {
                 switch (_a.label) {
                     case 0:
-                        if (!this.canUseNetwork()) return [3 /*break*/, 3];
-                        // Tear down and re-create our network streams. This will ensure we get a fresh auth token
-                        // for the new user and re-fill the write pipeline with new mutations from the LocalStore
-                        // (since mutations are per-user).
-                        debug(LOG_TAG$8, 'RemoteStore restarting streams for new credential');
                         this.networkEnabled = false;
                         return [4 /*yield*/, this.disableNetworkInternal()];
                     case 1:
@@ -32448,8 +32557,26 @@ var RemoteStore = /** @class */ (function () {
                         return [4 /*yield*/, this.enableNetwork()];
                     case 2:
                         _a.sent();
-                        _a.label = 3;
-                    case 3: return [2 /*return*/];
+                        return [2 /*return*/];
+                }
+            });
+        });
+    };
+    RemoteStore.prototype.handleCredentialChange = function () {
+        return tslib_1.__awaiter(this, void 0, void 0, function () {
+            return tslib_1.__generator(this, function (_a) {
+                switch (_a.label) {
+                    case 0:
+                        if (!this.canUseNetwork()) return [3 /*break*/, 2];
+                        // Tear down and re-create our network streams. This will ensure we get a fresh auth token
+                        // for the new user and re-fill the write pipeline with new mutations from the LocalStore
+                        // (since mutations are per-user).
+                        debug(LOG_TAG$9, 'RemoteStore restarting streams for new credential');
+                        return [4 /*yield*/, this.restartNetwork()];
+                    case 1:
+                        _a.sent();
+                        _a.label = 2;
+                    case 2: return [2 /*return*/];
                 }
             });
         });
@@ -33159,7 +33286,7 @@ function compareChangeType(c1, c2) {
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-var LOG_TAG$9 = 'SyncEngine';
+var LOG_TAG$a = 'SyncEngine';
 /**
  * QueryView contains all of the data that SyncEngine needs to keep track of for
  * a particular query.
@@ -33579,7 +33706,7 @@ var SyncEngine = /** @class */ (function () {
                             // had, we would have cached the affected documents), and so we will just
                             // see any resulting document changes via normal remote document updates
                             // as applicable.
-                            debug(LOG_TAG$9, 'Cannot apply mutation batch with id: ' + batchId);
+                            debug(LOG_TAG$a, 'Cannot apply mutation batch with id: ' + batchId);
                             return [2 /*return*/];
                         }
                         if (!(batchState === 'pending')) return [3 /*break*/, 3];
@@ -33713,7 +33840,7 @@ var SyncEngine = /** @class */ (function () {
                 this.trackLimboChange(limboChange);
             }
             else if (limboChange instanceof RemovedLimboDocument) {
-                debug(LOG_TAG$9, 'Document no longer in limbo: ' + limboChange.key);
+                debug(LOG_TAG$a, 'Document no longer in limbo: ' + limboChange.key);
                 this.limboDocumentRefs.removeReference(limboChange.key, targetId);
                 var isReferenced = this.limboDocumentRefs.containsKey(limboChange.key);
                 if (!isReferenced) {
@@ -33729,7 +33856,7 @@ var SyncEngine = /** @class */ (function () {
     SyncEngine.prototype.trackLimboChange = function (limboChange) {
         var key = limboChange.key;
         if (!this.limboTargetsByKey.get(key)) {
-            debug(LOG_TAG$9, 'New document in limbo: ' + key);
+            debug(LOG_TAG$a, 'New document in limbo: ' + key);
             var limboTargetId = this.limboTargetIdGenerator.next();
             var query = Query.atPath(key.path);
             this.limboResolutionsByTarget[limboTargetId] = new LimboResolution(key);
@@ -33969,7 +34096,7 @@ var SyncEngine = /** @class */ (function () {
                         if (this.isPrimary) {
                             // If we receive a target state notification via WebStorage, we are
                             // either already secondary or another tab has taken the primary lease.
-                            debug(LOG_TAG$9, 'Ignoring unexpected query state notification.');
+                            debug(LOG_TAG$a, 'Ignoring unexpected query state notification.');
                             return [2 /*return*/];
                         }
                         if (!this.queryViewsByTarget[targetId]) return [3 /*break*/, 5];
@@ -34198,7 +34325,7 @@ var User = /** @class */ (function () {
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-var LOG_TAG$a = 'SharedClientState';
+var LOG_TAG$b = 'SharedClientState';
 // The format of the LocalStorage key that stores the client state is:
 //     firestore_clients_<persistence_prefix>_<instance_key>
 var CLIENT_STATE_KEY_PREFIX = 'firestore_clients';
@@ -34257,7 +34384,7 @@ var MutationMetadata = /** @class */ (function () {
             return new MutationMetadata(user, batchId, mutationBatch.state, firestoreError);
         }
         else {
-            error(LOG_TAG$a, "Failed to parse mutation state for ID '" + batchId + "': " + value);
+            error(LOG_TAG$b, "Failed to parse mutation state for ID '" + batchId + "': " + value);
             return null;
         }
     };
@@ -34312,7 +34439,7 @@ var QueryTargetMetadata = /** @class */ (function () {
             return new QueryTargetMetadata(targetId, targetState.state, firestoreError);
         }
         else {
-            error(LOG_TAG$a, "Failed to parse target state for ID '" + targetId + "': " + value);
+            error(LOG_TAG$b, "Failed to parse target state for ID '" + targetId + "': " + value);
             return null;
         }
     };
@@ -34357,7 +34484,7 @@ var RemoteClientState = /** @class */ (function () {
             return new RemoteClientState(clientId, activeTargetIdsSet);
         }
         else {
-            error(LOG_TAG$a, "Failed to parse client data for instance '" + clientId + "': " + value);
+            error(LOG_TAG$b, "Failed to parse client data for instance '" + clientId + "': " + value);
             return null;
         }
     };
@@ -34386,7 +34513,7 @@ var SharedOnlineState = /** @class */ (function () {
             return new SharedOnlineState(onlineState.clientId, OnlineState[onlineState.onlineState]);
         }
         else {
-            error(LOG_TAG$a, "Failed to parse online state: " + value);
+            error(LOG_TAG$b, "Failed to parse online state: " + value);
             return null;
         }
     };
@@ -34608,21 +34735,21 @@ var WebStorageSharedClientState = /** @class */ (function () {
     };
     WebStorageSharedClientState.prototype.getItem = function (key) {
         var value = this.storage.getItem(key);
-        debug(LOG_TAG$a, 'READ', key, value);
+        debug(LOG_TAG$b, 'READ', key, value);
         return value;
     };
     WebStorageSharedClientState.prototype.setItem = function (key, value) {
-        debug(LOG_TAG$a, 'SET', key, value);
+        debug(LOG_TAG$b, 'SET', key, value);
         this.storage.setItem(key, value);
     };
     WebStorageSharedClientState.prototype.removeItem = function (key) {
-        debug(LOG_TAG$a, 'REMOVE', key);
+        debug(LOG_TAG$b, 'REMOVE', key);
         this.storage.removeItem(key);
     };
     WebStorageSharedClientState.prototype.handleWebStorageEvent = function (event) {
         var _this = this;
         if (event.storageArea === this.storage) {
-            debug(LOG_TAG$a, 'EVENT', event.key, event.newValue);
+            debug(LOG_TAG$b, 'EVENT', event.key, event.newValue);
             if (event.key === this.localClientStorageKey) {
                 error('Received WebStorage notification for local change. Another client might have ' +
                     'garbage-collected our state');
@@ -34783,7 +34910,7 @@ var WebStorageSharedClientState = /** @class */ (function () {
         return tslib_1.__awaiter(this, void 0, void 0, function () {
             return tslib_1.__generator(this, function (_a) {
                 if (mutationBatch.user.uid !== this.currentUser.uid) {
-                    debug(LOG_TAG$a, "Ignoring mutation for non-active user " + mutationBatch.user.uid);
+                    debug(LOG_TAG$b, "Ignoring mutation for non-active user " + mutationBatch.user.uid);
                     return [2 /*return*/];
                 }
                 return [2 /*return*/, this.syncEngine.applyBatchState(mutationBatch.batchId, mutationBatch.state, mutationBatch.error)];
@@ -34844,7 +34971,7 @@ function fromWebStorageSequenceNumber(seqString) {
             sequenceNumber = parsed;
         }
         catch (e) {
-            error(LOG_TAG$a, 'Failed to read sequence number from WebStorage', e);
+            error(LOG_TAG$b, 'Failed to read sequence number from WebStorage', e);
         }
     }
     return sequenceNumber;
@@ -34921,10 +35048,10 @@ var MemorySharedClientState = /** @class */ (function () {
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-var LOG_TAG$b = 'FirestoreClient';
-/** The DOMException code for an aborted operation. */
+var LOG_TAG$c = 'FirestoreClient';
+/** DOMException error code constants. */
+var DOM_EXCEPTION_INVALID_STATE = 11;
 var DOM_EXCEPTION_ABORTED = 20;
-/** The DOMException code for quota exceeded. */
 var DOM_EXCEPTION_QUOTA_EXCEEDED = 22;
 var IndexedDbPersistenceSettings = /** @class */ (function () {
     function IndexedDbPersistenceSettings(cacheSizeBytes, synchronizeTabs) {
@@ -34962,7 +35089,7 @@ var FirestoreClient = /** @class */ (function () {
         this.credentials = credentials;
         this.asyncQueue = asyncQueue;
         this.clientId = AutoId.newId();
-        this.isShutdown = false;
+        this._clientShutdown = false;
     }
     /**
      * Starts up the FirestoreClient, returning only whether or not enabling
@@ -35081,8 +35208,8 @@ var FirestoreClient = /** @class */ (function () {
                 if (!_this.canFallback(error)) {
                     throw error;
                 }
-                console.warn('Error enabling offline storage. Falling back to' +
-                    ' storage disabled: ' +
+                console.warn('Error enabling offline persistence. Falling back to' +
+                    ' persistence disabled: ' +
                     error);
                 return _this.startMemoryPersistence();
             });
@@ -35107,14 +35234,22 @@ var FirestoreClient = /** @class */ (function () {
         }
         else if (typeof DOMException !== 'undefined' &&
             error instanceof DOMException) {
-            // We fall back to memory persistence if we cannot write the primary
-            // lease. This can happen can during a schema migration, or if we run out
-            // of quota when we try to write the primary lease.
-            // For both the `QuotaExceededError` and the  `AbortError`, it is safe to
-            // fall back to memory persistence since all modifications to IndexedDb
-            // failed to commit.
-            return (error.code === DOM_EXCEPTION_QUOTA_EXCEEDED ||
-                error.code === DOM_EXCEPTION_ABORTED);
+            // There are a few known circumstances where we can open IndexedDb but
+            // trying to read/write will fail (e.g. quota exceeded). For
+            // well-understood cases, we attempt to detect these and then gracefully
+            // fall back to memory persistence.
+            // NOTE: Rather than continue to add to this list, we could decide to
+            // always fall back, with the risk that we might accidentally hide errors
+            // representing actual SDK bugs.
+            return (
+            // When the browser is out of quota we could get either quota exceeded
+            // or an aborted error depending on whether the error happened during
+            // schema migration.
+            error.code === DOM_EXCEPTION_QUOTA_EXCEEDED ||
+                error.code === DOM_EXCEPTION_ABORTED ||
+                // Firefox Private Browsing mode disables IndexedDb and returns
+                // INVALID_STATE for any usage.
+                error.code === DOM_EXCEPTION_INVALID_STATE);
         }
         return true;
     };
@@ -35123,7 +35258,7 @@ var FirestoreClient = /** @class */ (function () {
      * this class cannot be called after the client is shutdown.
      */
     FirestoreClient.prototype.verifyNotShutdown = function () {
-        if (this.isShutdown) {
+        if (this._clientShutdown) {
             throw new FirestoreError(Code.FAILED_PRECONDITION, 'The client has already been shutdown.');
         }
     };
@@ -35187,11 +35322,11 @@ var FirestoreClient = /** @class */ (function () {
      */
     FirestoreClient.prototype.initializeRest = function (user, maybeLruGc) {
         var _this = this;
-        debug(LOG_TAG$b, 'Initializing. user=', user.uid);
+        debug(LOG_TAG$c, 'Initializing. user=', user.uid);
         return this.platform
             .loadConnection(this.databaseInfo)
             .then(function (connection) { return tslib_1.__awaiter(_this, void 0, void 0, function () {
-            var serializer, datastore, remoteStoreOnlineStateChangedHandler, sharedClientStateOnlineStateChangedHandler;
+            var connectivityMonitor, serializer, datastore, remoteStoreOnlineStateChangedHandler, sharedClientStateOnlineStateChangedHandler;
             var _this = this;
             return tslib_1.__generator(this, function (_a) {
                 switch (_a.label) {
@@ -35201,6 +35336,7 @@ var FirestoreClient = /** @class */ (function () {
                             // We're running LRU Garbage collection. Set up the scheduler.
                             this.lruScheduler = new LruScheduler(maybeLruGc, this.asyncQueue, this.localStore);
                         }
+                        connectivityMonitor = this.platform.newConnectivityMonitor();
                         serializer = this.platform.newSerializer(this.databaseInfo.databaseId);
                         datastore = new Datastore(this.asyncQueue, connection, this.credentials, serializer);
                         remoteStoreOnlineStateChangedHandler = function (onlineState) {
@@ -35209,7 +35345,7 @@ var FirestoreClient = /** @class */ (function () {
                         sharedClientStateOnlineStateChangedHandler = function (onlineState) {
                             return _this.syncEngine.applyOnlineStateChange(onlineState, OnlineStateSource.SharedClientState);
                         };
-                        this.remoteStore = new RemoteStore(this.localStore, datastore, this.asyncQueue, remoteStoreOnlineStateChangedHandler);
+                        this.remoteStore = new RemoteStore(this.localStore, datastore, this.asyncQueue, remoteStoreOnlineStateChangedHandler, connectivityMonitor);
                         this.syncEngine = new SyncEngine(this.localStore, this.remoteStore, this.sharedClientState, user);
                         this.sharedClientState.onlineStateHandler = sharedClientStateOnlineStateChangedHandler;
                         // Set up wiring between sync engine and other components
@@ -35271,7 +35407,7 @@ var FirestoreClient = /** @class */ (function () {
     };
     FirestoreClient.prototype.handleCredentialChange = function (user) {
         this.asyncQueue.verifyOperationInProgress();
-        debug(LOG_TAG$b, 'Credential Changed. Current user: ' + user.uid);
+        debug(LOG_TAG$c, 'Credential Changed. Current user: ' + user.uid);
         return this.syncEngine.handleCredentialChange(user);
     };
     /** Disables the network connection. Pending operations will not complete. */
@@ -35284,13 +35420,11 @@ var FirestoreClient = /** @class */ (function () {
     };
     FirestoreClient.prototype.shutdown = function () {
         var _this = this;
-        if (this.isShutdown === true) {
-            return Promise.resolve();
-        }
         return this.asyncQueue.enqueue(function () { return tslib_1.__awaiter(_this, void 0, void 0, function () {
             return tslib_1.__generator(this, function (_a) {
                 switch (_a.label) {
                     case 0:
+                        if (!!this._clientShutdown) return [3 /*break*/, 4];
                         // PORTING NOTE: LocalStore does not need an explicit shutdown on web.
                         if (this.lruScheduler) {
                             this.lruScheduler.stop();
@@ -35308,8 +35442,9 @@ var FirestoreClient = /** @class */ (function () {
                         // RemoteStore as it will prevent the RemoteStore from retrieving
                         // auth tokens.
                         this.credentials.removeChangeListener();
-                        this.isShutdown = true;
-                        return [2 /*return*/];
+                        this._clientShutdown = true;
+                        _a.label = 4;
+                    case 4: return [2 /*return*/];
                 }
             });
         }); });
@@ -35379,6 +35514,13 @@ var FirestoreClient = /** @class */ (function () {
     FirestoreClient.prototype.databaseId = function () {
         return this.databaseInfo.databaseId;
     };
+    Object.defineProperty(FirestoreClient.prototype, "clientShutdown", {
+        get: function () {
+            return this._clientShutdown;
+        },
+        enumerable: true,
+        configurable: true
+    });
     FirestoreClient.prototype.transaction = function (updateFunction) {
         var _this = this;
         this.verifyNotShutdown();
@@ -36597,13 +36739,11 @@ var Firestore = /** @class */ (function () {
                             return [4 /*yield*/, this._firestoreClient.shutdown()];
                         case 1:
                             _a.sent();
-                            this.clientRunning = false;
                             return [2 /*return*/];
                     }
                 });
             }); }
         };
-        this.clientRunning = false;
         var config = new FirestoreConfig();
         if (typeof databaseIdOrApp.options === 'object') {
             // This is very likely a Firebase app object
@@ -36676,9 +36816,6 @@ var Firestore = /** @class */ (function () {
     };
     Firestore.prototype._clearPersistence = function () {
         var _this = this;
-        if (this.clientRunning) {
-            throw new FirestoreError(Code.FAILED_PRECONDITION, 'Persistence cannot be cleared while the client is running');
-        }
         var persistenceKey = IndexedDbPersistence.buildStoragePrefix(this.makeDatabaseInfo());
         var deferred = new Deferred();
         this._queue.enqueueAndForget(function () { return tslib_1.__awaiter(_this, void 0, void 0, function () {
@@ -36687,6 +36824,10 @@ var Firestore = /** @class */ (function () {
                 switch (_a.label) {
                     case 0:
                         _a.trys.push([0, 2, , 3]);
+                        if (this._firestoreClient !== undefined &&
+                            !this._firestoreClient.clientShutdown) {
+                            throw new FirestoreError(Code.FAILED_PRECONDITION, 'Persistence cannot be cleared while this firestore instance is running.');
+                        }
                         return [4 /*yield*/, IndexedDbPersistence.clearPersistence(persistenceKey)];
                     case 1:
                         _a.sent();
@@ -36717,7 +36858,6 @@ var Firestore = /** @class */ (function () {
         var _this = this;
         assert(!!this._config.settings.host, 'FirestoreSettings.host cannot be falsey');
         assert(!this._firestoreClient, 'configureClient() called multiple times');
-        this.clientRunning = true;
         var databaseInfo = this.makeDatabaseInfo();
         var preConverter = function (value) {
             if (value instanceof DocumentReference) {
@@ -38049,7 +38189,7 @@ exports.registerFirestore = registerFirestore;
 
 
 }).call(this,require('_process'))
-},{"@firebase/app":1,"@firebase/logger":7,"@firebase/util":11,"@firebase/webchannel-wrapper":12,"_process":25,"tslib":26}],5:[function(require,module,exports){
+},{"@firebase/app":1,"@firebase/logger":7,"@firebase/util":11,"@firebase/webchannel-wrapper":12,"_process":15,"tslib":26}],5:[function(require,module,exports){
 'use strict';
 
 Object.defineProperty(exports, '__esModule', { value: true });
@@ -38648,216 +38788,11 @@ Object.defineProperty(exports, '__esModule', { value: true });
 function _interopDefault (ex) { return (ex && (typeof ex === 'object') && 'default' in ex) ? ex['default'] : ex; }
 
 var firebase = _interopDefault(require('@firebase/app'));
+var tslib_1 = require('tslib');
 var util = require('@firebase/util');
 var idb = require('idb');
 
-/*! *****************************************************************************
-Copyright (c) Microsoft Corporation. All rights reserved.
-Licensed under the Apache License, Version 2.0 (the "License"); you may not use
-this file except in compliance with the License. You may obtain a copy of the
-License at http://www.apache.org/licenses/LICENSE-2.0
-
-THIS CODE IS PROVIDED ON AN *AS IS* BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
-KIND, EITHER EXPRESS OR IMPLIED, INCLUDING WITHOUT LIMITATION ANY IMPLIED
-WARRANTIES OR CONDITIONS OF TITLE, FITNESS FOR A PARTICULAR PURPOSE,
-MERCHANTABLITY OR NON-INFRINGEMENT.
-
-See the Apache Version 2.0 License for specific language governing permissions
-and limitations under the License.
-***************************************************************************** */
-/* global Reflect, Promise */
-
-var extendStatics = function(d, b) {
-    extendStatics = Object.setPrototypeOf ||
-        ({ __proto__: [] } instanceof Array && function (d, b) { d.__proto__ = b; }) ||
-        function (d, b) { for (var p in b) if (b.hasOwnProperty(p)) d[p] = b[p]; };
-    return extendStatics(d, b);
-};
-
-function __extends(d, b) {
-    extendStatics(d, b);
-    function __() { this.constructor = d; }
-    d.prototype = b === null ? Object.create(b) : (__.prototype = b.prototype, new __());
-}
-
-var __assign = function() {
-    __assign = Object.assign || function __assign(t) {
-        for (var s, i = 1, n = arguments.length; i < n; i++) {
-            s = arguments[i];
-            for (var p in s) if (Object.prototype.hasOwnProperty.call(s, p)) t[p] = s[p];
-        }
-        return t;
-    };
-    return __assign.apply(this, arguments);
-};
-
-function __rest(s, e) {
-    var t = {};
-    for (var p in s) if (Object.prototype.hasOwnProperty.call(s, p) && e.indexOf(p) < 0)
-        t[p] = s[p];
-    if (s != null && typeof Object.getOwnPropertySymbols === "function")
-        for (var i = 0, p = Object.getOwnPropertySymbols(s); i < p.length; i++) if (e.indexOf(p[i]) < 0)
-            t[p[i]] = s[p[i]];
-    return t;
-}
-
-function __decorate(decorators, target, key, desc) {
-    var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
-    if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
-    else for (var i = decorators.length - 1; i >= 0; i--) if (d = decorators[i]) r = (c < 3 ? d(r) : c > 3 ? d(target, key, r) : d(target, key)) || r;
-    return c > 3 && r && Object.defineProperty(target, key, r), r;
-}
-
-function __param(paramIndex, decorator) {
-    return function (target, key) { decorator(target, key, paramIndex); }
-}
-
-function __metadata(metadataKey, metadataValue) {
-    if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(metadataKey, metadataValue);
-}
-
-function __awaiter(thisArg, _arguments, P, generator) {
-    return new (P || (P = Promise))(function (resolve, reject) {
-        function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
-        function rejected(value) { try { step(generator["throw"](value)); } catch (e) { reject(e); } }
-        function step(result) { result.done ? resolve(result.value) : new P(function (resolve) { resolve(result.value); }).then(fulfilled, rejected); }
-        step((generator = generator.apply(thisArg, _arguments || [])).next());
-    });
-}
-
-function __generator(thisArg, body) {
-    var _ = { label: 0, sent: function() { if (t[0] & 1) throw t[1]; return t[1]; }, trys: [], ops: [] }, f, y, t, g;
-    return g = { next: verb(0), "throw": verb(1), "return": verb(2) }, typeof Symbol === "function" && (g[Symbol.iterator] = function() { return this; }), g;
-    function verb(n) { return function (v) { return step([n, v]); }; }
-    function step(op) {
-        if (f) throw new TypeError("Generator is already executing.");
-        while (_) try {
-            if (f = 1, y && (t = op[0] & 2 ? y["return"] : op[0] ? y["throw"] || ((t = y["return"]) && t.call(y), 0) : y.next) && !(t = t.call(y, op[1])).done) return t;
-            if (y = 0, t) op = [op[0] & 2, t.value];
-            switch (op[0]) {
-                case 0: case 1: t = op; break;
-                case 4: _.label++; return { value: op[1], done: false };
-                case 5: _.label++; y = op[1]; op = [0]; continue;
-                case 7: op = _.ops.pop(); _.trys.pop(); continue;
-                default:
-                    if (!(t = _.trys, t = t.length > 0 && t[t.length - 1]) && (op[0] === 6 || op[0] === 2)) { _ = 0; continue; }
-                    if (op[0] === 3 && (!t || (op[1] > t[0] && op[1] < t[3]))) { _.label = op[1]; break; }
-                    if (op[0] === 6 && _.label < t[1]) { _.label = t[1]; t = op; break; }
-                    if (t && _.label < t[2]) { _.label = t[2]; _.ops.push(op); break; }
-                    if (t[2]) _.ops.pop();
-                    _.trys.pop(); continue;
-            }
-            op = body.call(thisArg, _);
-        } catch (e) { op = [6, e]; y = 0; } finally { f = t = 0; }
-        if (op[0] & 5) throw op[1]; return { value: op[0] ? op[1] : void 0, done: true };
-    }
-}
-
-function __exportStar(m, exports) {
-    for (var p in m) if (!exports.hasOwnProperty(p)) exports[p] = m[p];
-}
-
-function __values(o) {
-    var m = typeof Symbol === "function" && o[Symbol.iterator], i = 0;
-    if (m) return m.call(o);
-    return {
-        next: function () {
-            if (o && i >= o.length) o = void 0;
-            return { value: o && o[i++], done: !o };
-        }
-    };
-}
-
-function __read(o, n) {
-    var m = typeof Symbol === "function" && o[Symbol.iterator];
-    if (!m) return o;
-    var i = m.call(o), r, ar = [], e;
-    try {
-        while ((n === void 0 || n-- > 0) && !(r = i.next()).done) ar.push(r.value);
-    }
-    catch (error) { e = { error: error }; }
-    finally {
-        try {
-            if (r && !r.done && (m = i["return"])) m.call(i);
-        }
-        finally { if (e) throw e.error; }
-    }
-    return ar;
-}
-
-function __spread() {
-    for (var ar = [], i = 0; i < arguments.length; i++)
-        ar = ar.concat(__read(arguments[i]));
-    return ar;
-}
-
-function __await(v) {
-    return this instanceof __await ? (this.v = v, this) : new __await(v);
-}
-
-function __asyncGenerator(thisArg, _arguments, generator) {
-    if (!Symbol.asyncIterator) throw new TypeError("Symbol.asyncIterator is not defined.");
-    var g = generator.apply(thisArg, _arguments || []), i, q = [];
-    return i = {}, verb("next"), verb("throw"), verb("return"), i[Symbol.asyncIterator] = function () { return this; }, i;
-    function verb(n) { if (g[n]) i[n] = function (v) { return new Promise(function (a, b) { q.push([n, v, a, b]) > 1 || resume(n, v); }); }; }
-    function resume(n, v) { try { step(g[n](v)); } catch (e) { settle(q[0][3], e); } }
-    function step(r) { r.value instanceof __await ? Promise.resolve(r.value.v).then(fulfill, reject) : settle(q[0][2], r); }
-    function fulfill(value) { resume("next", value); }
-    function reject(value) { resume("throw", value); }
-    function settle(f, v) { if (f(v), q.shift(), q.length) resume(q[0][0], q[0][1]); }
-}
-
-function __asyncDelegator(o) {
-    var i, p;
-    return i = {}, verb("next"), verb("throw", function (e) { throw e; }), verb("return"), i[Symbol.iterator] = function () { return this; }, i;
-    function verb(n, f) { i[n] = o[n] ? function (v) { return (p = !p) ? { value: __await(o[n](v)), done: n === "return" } : f ? f(v) : v; } : f; }
-}
-
-function __asyncValues(o) {
-    if (!Symbol.asyncIterator) throw new TypeError("Symbol.asyncIterator is not defined.");
-    var m = o[Symbol.asyncIterator], i;
-    return m ? m.call(o) : (o = typeof __values === "function" ? __values(o) : o[Symbol.iterator](), i = {}, verb("next"), verb("throw"), verb("return"), i[Symbol.asyncIterator] = function () { return this; }, i);
-    function verb(n) { i[n] = o[n] && function (v) { return new Promise(function (resolve, reject) { v = o[n](v), settle(resolve, reject, v.done, v.value); }); }; }
-    function settle(resolve, reject, d, v) { Promise.resolve(v).then(function(v) { resolve({ value: v, done: d }); }, reject); }
-}
-
-function __makeTemplateObject(cooked, raw) {
-    if (Object.defineProperty) { Object.defineProperty(cooked, "raw", { value: raw }); } else { cooked.raw = raw; }
-    return cooked;
-}
-function __importStar(mod) {
-    if (mod && mod.__esModule) return mod;
-    var result = {};
-    if (mod != null) for (var k in mod) if (Object.hasOwnProperty.call(mod, k)) result[k] = mod[k];
-    result.default = mod;
-    return result;
-}
-
-function __importDefault(mod) {
-    return (mod && mod.__esModule) ? mod : { default: mod };
-}
-
-var tslib_1 = /*#__PURE__*/Object.freeze({
-    __extends: __extends,
-    get __assign () { return __assign; },
-    __rest: __rest,
-    __decorate: __decorate,
-    __param: __param,
-    __metadata: __metadata,
-    __awaiter: __awaiter,
-    __generator: __generator,
-    __exportStar: __exportStar,
-    __values: __values,
-    __read: __read,
-    __spread: __spread,
-    __await: __await,
-    __asyncGenerator: __asyncGenerator,
-    __asyncDelegator: __asyncDelegator,
-    __asyncValues: __asyncValues,
-    __makeTemplateObject: __makeTemplateObject,
-    __importStar: __importStar,
-    __importDefault: __importDefault
-});
+var version = "0.1.4";
 
 /**
  * @license
@@ -38876,7 +38811,7 @@ var tslib_1 = /*#__PURE__*/Object.freeze({
  * limitations under the License.
  */
 var PENDING_TIMEOUT_MS = 10000;
-var PACKAGE_VERSION = 'w:0.1.1'; // Will be replaced by Rollup
+var PACKAGE_VERSION = "w:" + version;
 var INTERNAL_AUTH_VERSION = 'FIS_v2';
 var INSTALLATIONS_API_URL = 'https://firebaseinstallations.googleapis.com/v1';
 var TOKEN_EXPIRATION_BUFFER = 60 * 60 * 1000; // One hour
@@ -38974,9 +38909,9 @@ function extractAuthTokenInfoFromResponse(response) {
     };
 }
 function getErrorFromResponse(requestName, response) {
-    return __awaiter(this, void 0, void 0, function () {
+    return tslib_1.__awaiter(this, void 0, void 0, function () {
         var responseJson, errorData;
-        return __generator(this, function (_a) {
+        return tslib_1.__generator(this, function (_a) {
             switch (_a.label) {
                 case 0: return [4 /*yield*/, response.json()];
                 case 1:
@@ -39032,9 +38967,9 @@ function getAuthorizationHeader(refreshToken) {
  */
 function createInstallation(appConfig, _a) {
     var fid = _a.fid;
-    return __awaiter(this, void 0, void 0, function () {
+    return tslib_1.__awaiter(this, void 0, void 0, function () {
         var endpoint, headers, body, request, response, responseValue, registeredInstallationEntry;
-        return __generator(this, function (_b) {
+        return tslib_1.__generator(this, function (_b) {
             switch (_b.label) {
                 case 0:
                     endpoint = getInstallationsEndpoint(appConfig);
@@ -39064,7 +38999,8 @@ function createInstallation(appConfig, _a) {
                         authToken: extractAuthTokenInfoFromResponse(responseValue.authToken)
                     };
                     return [2 /*return*/, registeredInstallationEntry];
-                case 3: throw getErrorFromResponse('Create Installation', response);
+                case 3: return [4 /*yield*/, getErrorFromResponse('Create Installation', response)];
+                case 4: throw _b.sent();
             }
         });
     });
@@ -39111,7 +39047,7 @@ function sleep(ms) {
  */
 function bufferToBase64UrlSafe(buffer) {
     var array = buffer instanceof Uint8Array ? buffer : new Uint8Array(buffer);
-    var b64 = btoa(String.fromCharCode.apply(String, __spread(array)));
+    var b64 = btoa(String.fromCharCode.apply(String, tslib_1.__spread(array)));
     return b64.replace(/\+/g, '-').replace(/\//g, '_');
 }
 
@@ -39180,9 +39116,9 @@ var dbPromise = idb.openDb(DATABASE_NAME, DATABASE_VERSION, function (upgradeDB)
 });
 /** Assigns or overwrites the record for the given key with the given value. */
 function set(appConfig, value) {
-    return __awaiter(this, void 0, void 0, function () {
+    return tslib_1.__awaiter(this, void 0, void 0, function () {
         var key, db, tx;
-        return __generator(this, function (_a) {
+        return tslib_1.__generator(this, function (_a) {
             switch (_a.label) {
                 case 0:
                     key = getKey(appConfig);
@@ -39201,9 +39137,9 @@ function set(appConfig, value) {
 }
 /** Removes record(s) from the objectStore that match the given key. */
 function remove(appConfig) {
-    return __awaiter(this, void 0, void 0, function () {
+    return tslib_1.__awaiter(this, void 0, void 0, function () {
         var key, db, tx;
-        return __generator(this, function (_a) {
+        return tslib_1.__generator(this, function (_a) {
             switch (_a.label) {
                 case 0:
                     key = getKey(appConfig);
@@ -39224,9 +39160,9 @@ function remove(appConfig) {
  * @return Updated value
  */
 function update(appConfig, updateFn) {
-    return __awaiter(this, void 0, void 0, function () {
+    return tslib_1.__awaiter(this, void 0, void 0, function () {
         var key, db, tx, store, oldValue, newValue;
-        return __generator(this, function (_a) {
+        return tslib_1.__generator(this, function (_a) {
             switch (_a.label) {
                 case 0:
                     key = getKey(appConfig);
@@ -39281,9 +39217,9 @@ function getKey(appConfig) {
  * Also triggers a registration request if it is necessary and possible.
  */
 function getInstallationEntry(appConfig) {
-    return __awaiter(this, void 0, void 0, function () {
+    return tslib_1.__awaiter(this, void 0, void 0, function () {
         var registrationPromise, _a;
-        return __generator(this, function (_b) {
+        return tslib_1.__generator(this, function (_b) {
             switch (_b.label) {
                 case 0:
                     _a = {};
@@ -39348,9 +39284,9 @@ function triggerRegistrationIfNecessary(appConfig, installationEntry) {
 }
 /** This will be executed only once for each new Firebase Installation. */
 function registerInstallation(appConfig, installationEntry) {
-    return __awaiter(this, void 0, void 0, function () {
+    return tslib_1.__awaiter(this, void 0, void 0, function () {
         var registeredInstallationEntry, e_1;
-        return __generator(this, function (_a) {
+        return tslib_1.__generator(this, function (_a) {
             switch (_a.label) {
                 case 0:
                     _a.trys.push([0, 3, , 8]);
@@ -39390,9 +39326,9 @@ function registerInstallation(appConfig, installationEntry) {
 }
 /** Call if FID registration is pending. */
 function waitUntilFidRegistration(appConfig) {
-    return __awaiter(this, void 0, void 0, function () {
+    return tslib_1.__awaiter(this, void 0, void 0, function () {
         var entry;
-        return __generator(this, function (_a) {
+        return tslib_1.__generator(this, function (_a) {
             switch (_a.label) {
                 case 0: return [4 /*yield*/, updateInstallationRequest(appConfig)];
                 case 1:
@@ -39462,9 +39398,9 @@ function hasInstallationRequestTimedOut(installationEntry) {
  * limitations under the License.
  */
 function getId(app) {
-    return __awaiter(this, void 0, void 0, function () {
+    return tslib_1.__awaiter(this, void 0, void 0, function () {
         var appConfig, _a, installationEntry, registrationPromise;
-        return __generator(this, function (_b) {
+        return tslib_1.__generator(this, function (_b) {
             switch (_b.label) {
                 case 0:
                     appConfig = extractAppConfig(app);
@@ -39498,9 +39434,9 @@ function getId(app) {
  * limitations under the License.
  */
 function generateAuthToken(appConfig, installationEntry) {
-    return __awaiter(this, void 0, void 0, function () {
+    return tslib_1.__awaiter(this, void 0, void 0, function () {
         var endpoint, headers, body, request, response, responseValue, completedAuthToken;
-        return __generator(this, function (_a) {
+        return tslib_1.__generator(this, function (_a) {
             switch (_a.label) {
                 case 0:
                     endpoint = getGenerateAuthTokenEndpoint(appConfig, installationEntry);
@@ -39524,7 +39460,8 @@ function generateAuthToken(appConfig, installationEntry) {
                     responseValue = _a.sent();
                     completedAuthToken = extractAuthTokenInfoFromResponse(responseValue);
                     return [2 /*return*/, completedAuthToken];
-                case 3: throw getErrorFromResponse('Generate Auth Token', response);
+                case 3: return [4 /*yield*/, getErrorFromResponse('Generate Auth Token', response)];
+                case 4: throw _a.sent();
             }
         });
     });
@@ -39551,9 +39488,9 @@ function getGenerateAuthTokenEndpoint(appConfig, _a) {
  * limitations under the License.
  */
 function getToken(app) {
-    return __awaiter(this, void 0, void 0, function () {
+    return tslib_1.__awaiter(this, void 0, void 0, function () {
         var appConfig;
-        return __generator(this, function (_a) {
+        return tslib_1.__generator(this, function (_a) {
             switch (_a.label) {
                 case 0:
                     appConfig = extractAppConfig(app);
@@ -39568,9 +39505,9 @@ function getToken(app) {
     });
 }
 function completeInstallationRegistration(appConfig) {
-    return __awaiter(this, void 0, void 0, function () {
+    return tslib_1.__awaiter(this, void 0, void 0, function () {
         var _a, installationEntry, registrationPromise;
-        return __generator(this, function (_b) {
+        return tslib_1.__generator(this, function (_b) {
             switch (_b.label) {
                 case 0: return [4 /*yield*/, getInstallationEntry(appConfig)];
                 case 1:
@@ -39594,9 +39531,9 @@ function completeInstallationRegistration(appConfig) {
     });
 }
 function fetchAuthToken(appConfig) {
-    return __awaiter(this, void 0, void 0, function () {
+    return tslib_1.__awaiter(this, void 0, void 0, function () {
         var tokenPromise, entry, authToken, _a;
-        return __generator(this, function (_b) {
+        return tslib_1.__generator(this, function (_b) {
             switch (_b.label) {
                 case 0: return [4 /*yield*/, update(appConfig, function (oldEntry) {
                         if (!isEntryRegistered(oldEntry)) {
@@ -39643,9 +39580,9 @@ function fetchAuthToken(appConfig) {
  * Call only if FID is registered and Auth Token request is in progress.
  */
 function waitUntilAuthTokenRequest(appConfig) {
-    return __awaiter(this, void 0, void 0, function () {
+    return tslib_1.__awaiter(this, void 0, void 0, function () {
         var entry, authToken;
-        return __generator(this, function (_a) {
+        return tslib_1.__generator(this, function (_a) {
             switch (_a.label) {
                 case 0: return [4 /*yield*/, updateAuthTokenRequest(appConfig)];
                 case 1:
@@ -39690,22 +39627,22 @@ function updateAuthTokenRequest(appConfig) {
         }
         var oldAuthToken = oldEntry.authToken;
         if (hasAuthTokenRequestTimedOut(oldAuthToken)) {
-            return __assign({}, oldEntry, { authToken: { requestStatus: 0 /* NOT_STARTED */ } });
+            return tslib_1.__assign({}, oldEntry, { authToken: { requestStatus: 0 /* NOT_STARTED */ } });
         }
         return oldEntry;
     });
 }
 function fetchAuthTokenFromServer(appConfig, installationEntry) {
-    return __awaiter(this, void 0, void 0, function () {
+    return tslib_1.__awaiter(this, void 0, void 0, function () {
         var authToken, updatedInstallationEntry, e_1, updatedInstallationEntry;
-        return __generator(this, function (_a) {
+        return tslib_1.__generator(this, function (_a) {
             switch (_a.label) {
                 case 0:
                     _a.trys.push([0, 3, , 8]);
                     return [4 /*yield*/, generateAuthToken(appConfig, installationEntry)];
                 case 1:
                     authToken = _a.sent();
-                    updatedInstallationEntry = __assign({}, installationEntry, { authToken: authToken });
+                    updatedInstallationEntry = tslib_1.__assign({}, installationEntry, { authToken: authToken });
                     return [4 /*yield*/, set(appConfig, updatedInstallationEntry)];
                 case 2:
                     _a.sent();
@@ -39722,7 +39659,7 @@ function fetchAuthTokenFromServer(appConfig, installationEntry) {
                     _a.sent();
                     return [3 /*break*/, 7];
                 case 5:
-                    updatedInstallationEntry = __assign({}, installationEntry, { authToken: { requestStatus: 0 /* NOT_STARTED */ } });
+                    updatedInstallationEntry = tslib_1.__assign({}, installationEntry, { authToken: { requestStatus: 0 /* NOT_STARTED */ } });
                     return [4 /*yield*/, set(appConfig, updatedInstallationEntry)];
                 case 6:
                     _a.sent();
@@ -39752,7 +39689,7 @@ function makeAuthTokenRequestInProgressEntry(oldEntry) {
         requestStatus: 1 /* IN_PROGRESS */,
         requestTime: Date.now()
     };
-    return __assign({}, oldEntry, { authToken: inProgressAuthToken });
+    return tslib_1.__assign({}, oldEntry, { authToken: inProgressAuthToken });
 }
 function hasAuthTokenRequestTimedOut(authToken) {
     return (authToken.requestStatus === 1 /* IN_PROGRESS */ &&
@@ -39776,9 +39713,9 @@ function hasAuthTokenRequestTimedOut(authToken) {
  * limitations under the License.
  */
 function deleteInstallation(appConfig, installationEntry) {
-    return __awaiter(this, void 0, void 0, function () {
+    return tslib_1.__awaiter(this, void 0, void 0, function () {
         var endpoint, headers, request, response;
-        return __generator(this, function (_a) {
+        return tslib_1.__generator(this, function (_a) {
             switch (_a.label) {
                 case 0:
                     endpoint = getDeleteEndpoint(appConfig, installationEntry);
@@ -39790,10 +39727,10 @@ function deleteInstallation(appConfig, installationEntry) {
                     return [4 /*yield*/, fetch(endpoint, request)];
                 case 1:
                     response = _a.sent();
-                    if (!response.ok) {
-                        throw getErrorFromResponse('Delete Installation', response);
-                    }
-                    return [2 /*return*/];
+                    if (!!response.ok) return [3 /*break*/, 3];
+                    return [4 /*yield*/, getErrorFromResponse('Delete Installation', response)];
+                case 2: throw _a.sent();
+                case 3: return [2 /*return*/];
             }
         });
     });
@@ -39820,9 +39757,9 @@ function getDeleteEndpoint(appConfig, _a) {
  * limitations under the License.
  */
 function deleteInstallation$1(app) {
-    return __awaiter(this, void 0, void 0, function () {
+    return tslib_1.__awaiter(this, void 0, void 0, function () {
         var appConfig, entry;
-        return __generator(this, function (_a) {
+        return tslib_1.__generator(this, function (_a) {
             switch (_a.label) {
                 case 0:
                     appConfig = extractAppConfig(app);
@@ -39909,7 +39846,7 @@ registerInstallations(firebase);
 exports.registerInstallations = registerInstallations;
 
 
-},{"@firebase/app":1,"@firebase/util":11,"idb":21}],7:[function(require,module,exports){
+},{"@firebase/app":1,"@firebase/util":11,"idb":22,"tslib":26}],7:[function(require,module,exports){
 'use strict';
 
 Object.defineProperty(exports, '__esModule', { value: true });
@@ -40437,7 +40374,9 @@ var IidModel = /** @class */ (function () {
                         return [3 /*break*/, 5];
                     case 4:
                         err_1 = _a.sent();
-                        throw errorFactory.create("token-subscribe-failed" /* TOKEN_SUBSCRIBE_FAILED */);
+                        throw errorFactory.create("token-subscribe-failed" /* TOKEN_SUBSCRIBE_FAILED */, {
+                            errorInfo: err_1
+                        });
                     case 5:
                         if (responseData.error) {
                             message = responseData.error.message;
@@ -40499,7 +40438,9 @@ var IidModel = /** @class */ (function () {
                         return [3 /*break*/, 5];
                     case 4:
                         err_2 = _a.sent();
-                        throw errorFactory.create("token-update-failed" /* TOKEN_UPDATE_FAILED */);
+                        throw errorFactory.create("token-update-failed" /* TOKEN_UPDATE_FAILED */, {
+                            errorInfo: err_2
+                        });
                     case 5:
                         if (responseData.error) {
                             message = responseData.error.message;
@@ -40552,7 +40493,9 @@ var IidModel = /** @class */ (function () {
                         return [3 /*break*/, 5];
                     case 4:
                         err_3 = _a.sent();
-                        throw errorFactory.create("token-unsubscribe-failed" /* TOKEN_UNSUBSCRIBE_FAILED */);
+                        throw errorFactory.create("token-unsubscribe-failed" /* TOKEN_UNSUBSCRIBE_FAILED */, {
+                            errorInfo: err_3
+                        });
                     case 5: return [2 /*return*/];
                 }
             });
@@ -41347,6 +41290,10 @@ var BaseController = /** @class */ (function () {
     //
     // The following methods should only be available in the window.
     //
+    /**
+     * @deprecated Use Notification.requestPermission() instead.
+     * https://developer.mozilla.org/en-US/docs/Web/API/Notification/requestPermission
+     */
     BaseController.prototype.requestPermission = function () {
         throw errorFactory.create("only-available-in-window" /* AVAILABLE_IN_WINDOW */);
     };
@@ -41395,9 +41342,6 @@ var BaseController = /** @class */ (function () {
      * Returns the current Notification Permission state.
      */
     BaseController.prototype.getNotificationPermission_ = function () {
-        // TODO: Remove the cast when this issue is fixed:
-        // https://github.com/Microsoft/TypeScript/issues/14701
-        // tslint:disable-next-line no-any
         return Notification.permission;
     };
     BaseController.prototype.getTokenDetailsModel = function () {
@@ -41924,6 +41868,9 @@ var WindowController = /** @class */ (function (_super) {
      * Request permission if it is not currently granted
      *
      * @return Resolves if the permission was granted, otherwise rejects
+     *
+     * @deprecated Use Notification.requestPermission() instead.
+     * https://developer.mozilla.org/en-US/docs/Web/API/Notification/requestPermission
      */
     WindowController.prototype.requestPermission = function () {
         return tslib_1.__awaiter(this, void 0, void 0, function () {
@@ -42267,6 +42214,8 @@ var util = require('@firebase/util');
 require('@firebase/installations');
 var logger$1 = require('@firebase/logger');
 
+var version = "0.2.5";
+
 /**
  * Copyright 2017 Google Inc.
  *
@@ -42282,7 +42231,7 @@ var logger$1 = require('@firebase/logger');
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-var SDK_VERSION = '0.2.2';
+var SDK_VERSION = version;
 /** The prefix for start User Timing marks used for creating Traces. */
 var TRACE_START_MARK_PREFIX = 'FB-PERF-TRACE-START';
 /** The prefix for stop User Timing marks used for creating Traces. */
@@ -43465,6 +43414,7 @@ Object.defineProperty(exports, '__esModule', { value: true });
 function _interopDefault (ex) { return (ex && (typeof ex === 'object') && 'default' in ex) ? ex['default'] : ex; }
 
 var firebase = _interopDefault(require('@firebase/app'));
+var tslib_1 = require('tslib');
 
 /**
  * @license
@@ -44073,6 +44023,9 @@ function isNonArrayObject(p) {
 function isString(p) {
     return typeof p === 'string' || p instanceof String;
 }
+function isInteger(p) {
+    return isNumber(p) && Number.isInteger(p);
+}
 function isNumber(p) {
     return typeof p === 'number' || p instanceof Number;
 }
@@ -44328,6 +44281,13 @@ var Location = /** @class */ (function () {
     Object.defineProperty(Location.prototype, "path", {
         get: function () {
             return this.path_;
+        },
+        enumerable: true,
+        configurable: true
+    });
+    Object.defineProperty(Location.prototype, "isRoot", {
+        get: function () {
+            return this.path.length === 0;
         },
         enumerable: true,
         configurable: true
@@ -44669,6 +44629,83 @@ function metadataValidator(p) {
 
 /**
  * @license
+ * Copyright 2019 Google Inc.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+var MAX_RESULTS_KEY = 'maxResults';
+var MAX_MAX_RESULTS = 1000;
+var PAGE_TOKEN_KEY = 'pageToken';
+var PREFIXES_KEY = 'prefixes';
+var ITEMS_KEY = 'items';
+function fromBackendResponse(authWrapper, resource) {
+    var listResult = {
+        prefixes: [],
+        items: [],
+        nextPageToken: resource['nextPageToken']
+    };
+    if (resource[PREFIXES_KEY]) {
+        for (var _i = 0, _a = resource[PREFIXES_KEY]; _i < _a.length; _i++) {
+            var path = _a[_i];
+            var pathWithoutTrailingSlash = path.replace(/\/$/, '');
+            var reference = authWrapper.makeStorageReference(new Location(authWrapper.bucket(), pathWithoutTrailingSlash));
+            listResult.prefixes.push(reference);
+        }
+    }
+    if (resource[ITEMS_KEY]) {
+        for (var _b = 0, _c = resource[ITEMS_KEY]; _b < _c.length; _b++) {
+            var item = _c[_b];
+            var reference = authWrapper.makeStorageReference(new Location(authWrapper.bucket(), item['name']));
+            listResult.items.push(reference);
+        }
+    }
+    return listResult;
+}
+function fromResponseString(authWrapper, resourceString) {
+    var obj = jsonObjectOrNull(resourceString);
+    if (obj === null) {
+        return null;
+    }
+    var resource = obj;
+    return fromBackendResponse(authWrapper, resource);
+}
+function listOptionsValidator(p) {
+    var validType = p && isObject(p);
+    if (!validType) {
+        throw 'Expected ListOptions object.';
+    }
+    for (var key in p) {
+        if (key === MAX_RESULTS_KEY) {
+            if (!isInteger(p[MAX_RESULTS_KEY]) || p[MAX_RESULTS_KEY] <= 0) {
+                throw 'Expected maxResults to be a positive number.';
+            }
+            if (p[MAX_RESULTS_KEY] > 1000) {
+                throw "Expected maxResults to be less than or equal to " + MAX_MAX_RESULTS + ".";
+            }
+        }
+        else if (key === PAGE_TOKEN_KEY) {
+            if (p[PAGE_TOKEN_KEY] && !isString(p[PAGE_TOKEN_KEY])) {
+                throw 'Expected pageToken to be string.';
+            }
+        }
+        else {
+            throw 'Unknown option: ' + key;
+        }
+    }
+}
+
+/**
+ * @license
  * Copyright 2017 Google Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -44766,6 +44803,9 @@ function uploadDataSpec() {
 }
 function metadataSpec(opt_optional) {
     return new ArgSpec(metadataValidator, opt_optional);
+}
+function listOptionSpec(opt_optional) {
+    return new ArgSpec(listOptionsValidator, opt_optional);
 }
 function nonNegativeNumberSpec() {
     function validator(p) {
@@ -45097,6 +45137,14 @@ function metadataHandler(authWrapper, mappings) {
     }
     return handler;
 }
+function listHandler(authWrapper) {
+    function handler(xhr, text) {
+        var listResult = fromResponseString(authWrapper, text);
+        handlerCheck(listResult !== null);
+        return listResult;
+    }
+    return handler;
+}
 function downloadUrlHandler(authWrapper, mappings) {
     function handler(xhr, text) {
         var metadata = fromResourceString(authWrapper, text, mappings);
@@ -45148,6 +45196,32 @@ function getMetadata(authWrapper, location, mappings) {
     var timeout = authWrapper.maxOperationRetryTime();
     var requestInfo = new RequestInfo(url, method, metadataHandler(authWrapper, mappings), timeout);
     requestInfo.errorHandler = objectErrorHandler(location);
+    return requestInfo;
+}
+function list(authWrapper, location, delimiter, pageToken, maxResults) {
+    var urlParams = {};
+    if (location.isRoot) {
+        urlParams['prefix'] = '';
+    }
+    else {
+        urlParams['prefix'] = location.path + '/';
+    }
+    if (delimiter && delimiter.length > 0) {
+        urlParams['delimiter'] = delimiter;
+    }
+    if (pageToken) {
+        urlParams['pageToken'] = pageToken;
+    }
+    if (maxResults) {
+        urlParams['maxResults'] = maxResults;
+    }
+    var urlPart = location.bucketOnlyServerUrl();
+    var url = makeUrl(urlPart);
+    var method = 'GET';
+    var timeout = authWrapper.maxOperationRetryTime();
+    var requestInfo = new RequestInfo(url, method, listHandler(authWrapper), timeout);
+    requestInfo.urlParams = urlParams;
+    requestInfo.errorHandler = sharedErrorHandler(location);
     return requestInfo;
 }
 function getDownloadUrl(authWrapper, location, mappings) {
@@ -46036,7 +46110,7 @@ var UploadTask = /** @class */ (function () {
 
 /**
  * @license
- * Copyright 2017 Google Inc.
+ * Copyright 2019 Google Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -46197,6 +46271,86 @@ var Reference = /** @class */ (function () {
         var self = this;
         return this.authWrapper.getAuthToken().then(function (authToken) {
             var requestInfo = deleteObject(self.authWrapper, self.location);
+            return self.authWrapper.makeRequest(requestInfo, authToken).getPromise();
+        });
+    };
+    /**
+     * List all items (files) and prefixes (folders) under this storage reference.
+     *
+     * This is a helper method for calling list() repeatedly until there are
+     * no more results. The default pagination size is 1000.
+     *
+     * Note: The results may not be consistent if objects are changed while this
+     * operation is running.
+     *
+     * Warning: listAll may potentially consume too many resources if there are
+     * too many results.
+     *
+     * @return A Promise that resolves with all the items and prefixes under
+     *      the current storage reference. `prefixes` contains references to
+     *      sub-directories and `items` contains references to objects in this
+     *      folder. `nextPageToken` is never returned.
+     */
+    Reference.prototype.listAll = function () {
+        validate('listAll', [], arguments);
+        var accumulator = {
+            prefixes: [],
+            items: []
+        };
+        return this.listAllHelper(accumulator, null).then(function () { return accumulator; });
+    };
+    Reference.prototype.listAllHelper = function (accumulator, pageToken) {
+        return tslib_1.__awaiter(this, void 0, void 0, function () {
+            var _a, _b, opt, nextPage;
+            return tslib_1.__generator(this, function (_c) {
+                switch (_c.label) {
+                    case 0:
+                        opt = {
+                            // maxResults is 1000 by default.
+                            pageToken: pageToken
+                        };
+                        return [4 /*yield*/, this.list(opt)];
+                    case 1:
+                        nextPage = _c.sent();
+                        (_a = accumulator.prefixes).push.apply(_a, nextPage.prefixes);
+                        (_b = accumulator.items).push.apply(_b, nextPage.items);
+                        if (!(nextPage.nextPageToken !== undefined)) return [3 /*break*/, 3];
+                        return [4 /*yield*/, this.listAllHelper(accumulator, nextPage.nextPageToken)];
+                    case 2:
+                        _c.sent();
+                        _c.label = 3;
+                    case 3: return [2 /*return*/];
+                }
+            });
+        });
+    };
+    /**
+     * List items (files) and prefixes (folders) under this storage reference.
+     *
+     * List API is only available for Firebase Rules Version 2.
+     *
+     * GCS is a key-blob store. Firebase Storage imposes the semantic of '/'
+     * delimited folder structure.
+     * Refer to GCS's List API if you want to learn more.
+     *
+     * To adhere to Firebase Rules's Semantics, Firebase Storage does not
+     * support objects whose paths end with "/" or contain two consecutive
+     * "/"s. Firebase Storage List API will filter these unsupported objects.
+     * list() may fail if there are too many unsupported objects in the bucket.
+     *
+     * @param options See ListOptions for details.
+     * @return A Promise that resolves with the items and prefixes.
+     *      `prefixes` contains references to sub-folders and `items`
+     *      contains references to objects in this folder. `nextPageToken`
+     *      can be used to get the rest of the results.
+     */
+    Reference.prototype.list = function (options) {
+        validate('list', [listOptionSpec(true)], arguments);
+        var self = this;
+        return this.authWrapper.getAuthToken().then(function (authToken) {
+            var op = options || {};
+            var requestInfo = list(self.authWrapper, self.location, 
+            /*delimiter= */ '/', op.pageToken, op.maxResults);
             return self.authWrapper.makeRequest(requestInfo, authToken).getPromise();
         });
     };
@@ -46941,7 +47095,7 @@ registerStorage(firebase);
 exports.registerStorage = registerStorage;
 
 
-},{"@firebase/app":1}],11:[function(require,module,exports){
+},{"@firebase/app":1,"tslib":26}],11:[function(require,module,exports){
 (function (global){
 'use strict';
 
@@ -47476,7 +47630,7 @@ var Deferred = /** @class */ (function () {
  */
 /**
  * Returns navigator.userAgent string or '' if it's not defined.
- * @return {string} user agent string
+ * @return user agent string
  */
 function getUA() {
     if (typeof navigator !== 'undefined' &&
@@ -47490,10 +47644,9 @@ function getUA() {
 /**
  * Detect Cordova / PhoneGap / Ionic frameworks on a mobile device.
  *
- * Deliberately does not rely on checking `file://` URLs (as this fails PhoneGap in the Ripple emulator) nor
- * Cordova `onDeviceReady`, which would normally wait for a callback.
- *
- * @return {boolean} isMobileCordova
+ * Deliberately does not rely on checking `file://` URLs (as this fails PhoneGap
+ * in the Ripple emulator) nor Cordova `onDeviceReady`, which would normally
+ * wait for a callback.
  */
 function isMobileCordova() {
     return (typeof window !== 'undefined' &&
@@ -47503,9 +47656,9 @@ function isMobileCordova() {
 /**
  * Detect Node.js.
  *
- * @return {boolean} True if Node.js environment is detected.
- * Node detection logic from: https://github.com/iliakan/detect-node/
+ * @return true if Node.js environment is detected.
  */
+// Node detection logic from: https://github.com/iliakan/detect-node/
 function isNode() {
     try {
         return (Object.prototype.toString.call(global.process) === '[object process]');
@@ -47518,12 +47671,12 @@ function isNode() {
  * Detect Browser Environment
  */
 function isBrowser() {
-    return typeof window !== 'undefined';
+    return typeof self === 'object' && self.self === self;
 }
 /**
  * Detect React Native.
  *
- * @return {boolean} True if ReactNative environment is detected.
+ * @return true if ReactNative environment is detected.
  */
 function isReactNative() {
     return (typeof navigator === 'object' && navigator['product'] === 'ReactNative');
@@ -47531,7 +47684,7 @@ function isReactNative() {
 /**
  * Detect whether the current SDK build is the Node version.
  *
- * @return {boolean} True if it's the Node SDK build.
+ * @return true if it's the Node SDK build.
  */
 function isNodeSdk() {
     return CONSTANTS.NODE_CLIENT === true || CONSTANTS.NODE_ADMIN === true;
@@ -47580,24 +47733,28 @@ var ErrorFactory = /** @class */ (function () {
         this.serviceName = serviceName;
         this.errors = errors;
     }
-    ErrorFactory.prototype.create = function (code, data) {
-        if (data === void 0) { data = {}; }
+    ErrorFactory.prototype.create = function (code) {
+        var data = [];
+        for (var _i = 1; _i < arguments.length; _i++) {
+            data[_i - 1] = arguments[_i];
+        }
+        var customData = data[0] || {};
         var fullCode = this.service + "/" + code;
         var template = this.errors[code];
-        var message = template ? replaceTemplate(template, data) : 'Error';
+        var message = template ? replaceTemplate(template, customData) : 'Error';
         // Service Name: Error message (service/code).
         var fullMessage = this.serviceName + ": " + message + " (" + fullCode + ").";
         var error = new FirebaseError(fullCode, fullMessage);
         // Keys with an underscore at the end of their name are not included in
         // error.data for some reason.
         // TODO: Replace with Object.entries when lib is updated to es2017.
-        for (var _i = 0, _a = Object.keys(data); _i < _a.length; _i++) {
-            var key = _a[_i];
+        for (var _a = 0, _b = Object.keys(customData); _a < _b.length; _a++) {
+            var key = _b[_a];
             if (key.slice(-1) !== '_') {
                 if (key in error) {
                     console.warn("Overwriting FirebaseError base field \"" + key + "\" can cause unexpected behavior.");
                 }
-                error[key] = data[key];
+                error[key] = customData[key];
             }
         }
         return error;
@@ -48943,9 +49100,195 @@ module.exports = hyperx(belCreateElement, {comments: true})
 module.exports.default = module.exports
 module.exports.createElement = belCreateElement
 
-},{"global/document":17,"hyperx":20,"on-load":24}],14:[function(require,module,exports){
+},{"global/document":18,"hyperx":21,"on-load":25}],14:[function(require,module,exports){
 
 },{}],15:[function(require,module,exports){
+// shim for using process in browser
+var process = module.exports = {};
+
+// cached from whatever global is present so that test runners that stub it
+// don't break things.  But we need to wrap it in a try catch in case it is
+// wrapped in strict mode code which doesn't define any globals.  It's inside a
+// function because try/catches deoptimize in certain engines.
+
+var cachedSetTimeout;
+var cachedClearTimeout;
+
+function defaultSetTimout() {
+    throw new Error('setTimeout has not been defined');
+}
+function defaultClearTimeout () {
+    throw new Error('clearTimeout has not been defined');
+}
+(function () {
+    try {
+        if (typeof setTimeout === 'function') {
+            cachedSetTimeout = setTimeout;
+        } else {
+            cachedSetTimeout = defaultSetTimout;
+        }
+    } catch (e) {
+        cachedSetTimeout = defaultSetTimout;
+    }
+    try {
+        if (typeof clearTimeout === 'function') {
+            cachedClearTimeout = clearTimeout;
+        } else {
+            cachedClearTimeout = defaultClearTimeout;
+        }
+    } catch (e) {
+        cachedClearTimeout = defaultClearTimeout;
+    }
+} ())
+function runTimeout(fun) {
+    if (cachedSetTimeout === setTimeout) {
+        //normal enviroments in sane situations
+        return setTimeout(fun, 0);
+    }
+    // if setTimeout wasn't available but was latter defined
+    if ((cachedSetTimeout === defaultSetTimout || !cachedSetTimeout) && setTimeout) {
+        cachedSetTimeout = setTimeout;
+        return setTimeout(fun, 0);
+    }
+    try {
+        // when when somebody has screwed with setTimeout but no I.E. maddness
+        return cachedSetTimeout(fun, 0);
+    } catch(e){
+        try {
+            // When we are in I.E. but the script has been evaled so I.E. doesn't trust the global object when called normally
+            return cachedSetTimeout.call(null, fun, 0);
+        } catch(e){
+            // same as above but when it's a version of I.E. that must have the global object for 'this', hopfully our context correct otherwise it will throw a global error
+            return cachedSetTimeout.call(this, fun, 0);
+        }
+    }
+
+
+}
+function runClearTimeout(marker) {
+    if (cachedClearTimeout === clearTimeout) {
+        //normal enviroments in sane situations
+        return clearTimeout(marker);
+    }
+    // if clearTimeout wasn't available but was latter defined
+    if ((cachedClearTimeout === defaultClearTimeout || !cachedClearTimeout) && clearTimeout) {
+        cachedClearTimeout = clearTimeout;
+        return clearTimeout(marker);
+    }
+    try {
+        // when when somebody has screwed with setTimeout but no I.E. maddness
+        return cachedClearTimeout(marker);
+    } catch (e){
+        try {
+            // When we are in I.E. but the script has been evaled so I.E. doesn't  trust the global object when called normally
+            return cachedClearTimeout.call(null, marker);
+        } catch (e){
+            // same as above but when it's a version of I.E. that must have the global object for 'this', hopfully our context correct otherwise it will throw a global error.
+            // Some versions of I.E. have different rules for clearTimeout vs setTimeout
+            return cachedClearTimeout.call(this, marker);
+        }
+    }
+
+
+
+}
+var queue = [];
+var draining = false;
+var currentQueue;
+var queueIndex = -1;
+
+function cleanUpNextTick() {
+    if (!draining || !currentQueue) {
+        return;
+    }
+    draining = false;
+    if (currentQueue.length) {
+        queue = currentQueue.concat(queue);
+    } else {
+        queueIndex = -1;
+    }
+    if (queue.length) {
+        drainQueue();
+    }
+}
+
+function drainQueue() {
+    if (draining) {
+        return;
+    }
+    var timeout = runTimeout(cleanUpNextTick);
+    draining = true;
+
+    var len = queue.length;
+    while(len) {
+        currentQueue = queue;
+        queue = [];
+        while (++queueIndex < len) {
+            if (currentQueue) {
+                currentQueue[queueIndex].run();
+            }
+        }
+        queueIndex = -1;
+        len = queue.length;
+    }
+    currentQueue = null;
+    draining = false;
+    runClearTimeout(timeout);
+}
+
+process.nextTick = function (fun) {
+    var args = new Array(arguments.length - 1);
+    if (arguments.length > 1) {
+        for (var i = 1; i < arguments.length; i++) {
+            args[i - 1] = arguments[i];
+        }
+    }
+    queue.push(new Item(fun, args));
+    if (queue.length === 1 && !draining) {
+        runTimeout(drainQueue);
+    }
+};
+
+// v8 likes predictible objects
+function Item(fun, array) {
+    this.fun = fun;
+    this.array = array;
+}
+Item.prototype.run = function () {
+    this.fun.apply(null, this.array);
+};
+process.title = 'browser';
+process.browser = true;
+process.env = {};
+process.argv = [];
+process.version = ''; // empty string to avoid regexp issues
+process.versions = {};
+
+function noop() {}
+
+process.on = noop;
+process.addListener = noop;
+process.once = noop;
+process.off = noop;
+process.removeListener = noop;
+process.removeAllListeners = noop;
+process.emit = noop;
+process.prependListener = noop;
+process.prependOnceListener = noop;
+
+process.listeners = function (name) { return [] }
+
+process.binding = function (name) {
+    throw new Error('process.binding is not supported');
+};
+
+process.cwd = function () { return '/' };
+process.chdir = function (dir) {
+    throw new Error('process.chdir is not supported');
+};
+process.umask = function() { return 0; };
+
+},{}],16:[function(require,module,exports){
 /* global HTMLElement */
 
 'use strict'
@@ -48960,7 +49303,7 @@ module.exports = function emptyElement (element) {
   return element
 }
 
-},{}],16:[function(require,module,exports){
+},{}],17:[function(require,module,exports){
 'use strict';
 
 function _interopDefault (ex) { return (ex && (typeof ex === 'object') && 'default' in ex) ? ex['default'] : ex; }
@@ -49113,7 +49456,7 @@ console.warn("\nIt looks like you're using the development build of the Firebase
 module.exports = firebase;
 
 
-},{"@firebase/app":1,"@firebase/auth":2,"@firebase/database":3,"@firebase/firestore":4,"@firebase/functions":5,"@firebase/messaging":8,"@firebase/performance":9,"@firebase/storage":10}],17:[function(require,module,exports){
+},{"@firebase/app":1,"@firebase/auth":2,"@firebase/database":3,"@firebase/firestore":4,"@firebase/functions":5,"@firebase/messaging":8,"@firebase/performance":9,"@firebase/storage":10}],18:[function(require,module,exports){
 (function (global){
 var topLevel = typeof global !== 'undefined' ? global :
     typeof window !== 'undefined' ? window : {}
@@ -49134,7 +49477,7 @@ if (typeof document !== 'undefined') {
 module.exports = doccy;
 
 }).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
-},{"min-document":14}],18:[function(require,module,exports){
+},{"min-document":14}],19:[function(require,module,exports){
 (function (global){
 var win;
 
@@ -49151,7 +49494,7 @@ if (typeof window !== "undefined") {
 module.exports = win;
 
 }).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
-},{}],19:[function(require,module,exports){
+},{}],20:[function(require,module,exports){
 module.exports = attributeToProperty
 
 var transform = {
@@ -49172,7 +49515,7 @@ function attributeToProperty (h) {
   }
 }
 
-},{}],20:[function(require,module,exports){
+},{}],21:[function(require,module,exports){
 var attrToProp = require('hyperscript-attribute-to-property')
 
 var VAR = 0, TEXT = 1, OPEN = 2, CLOSE = 3, ATTR = 4
@@ -49469,7 +49812,7 @@ var closeRE = RegExp('^(' + [
 ].join('|') + ')(?:[\.#][a-zA-Z0-9\u007F-\uFFFF_:-]+)*$')
 function selfClosing (tag) { return closeRE.test(tag) }
 
-},{"hyperscript-attribute-to-property":19}],21:[function(require,module,exports){
+},{"hyperscript-attribute-to-property":20}],22:[function(require,module,exports){
 (function (global, factory) {
   typeof exports === 'object' && typeof module !== 'undefined' ? factory(exports) :
   typeof define === 'function' && define.amd ? define(['exports'], factory) :
@@ -49787,7 +50130,7 @@ function selfClosing (tag) { return closeRE.test(tag) }
 
 }));
 
-},{}],22:[function(require,module,exports){
+},{}],23:[function(require,module,exports){
 'use strict';
 
 function morphAttrs(fromNode, toNode) {
@@ -50506,7 +50849,7 @@ var morphdom = morphdomFactory(morphAttrs);
 
 module.exports = morphdom;
 
-},{}],23:[function(require,module,exports){
+},{}],24:[function(require,module,exports){
 assert.notEqual = notEqual
 assert.notOk = notOk
 assert.equal = equal
@@ -50530,7 +50873,7 @@ function assert (t, m) {
   if (!t) throw new Error(m || 'AssertionError')
 }
 
-},{}],24:[function(require,module,exports){
+},{}],25:[function(require,module,exports){
 /* global MutationObserver */
 var document = require('global/document')
 var window = require('global/window')
@@ -50634,193 +50977,7 @@ function eachMutation (nodes, fn) {
   }
 }
 
-},{"assert":23,"global/document":17,"global/window":18}],25:[function(require,module,exports){
-// shim for using process in browser
-var process = module.exports = {};
-
-// cached from whatever global is present so that test runners that stub it
-// don't break things.  But we need to wrap it in a try catch in case it is
-// wrapped in strict mode code which doesn't define any globals.  It's inside a
-// function because try/catches deoptimize in certain engines.
-
-var cachedSetTimeout;
-var cachedClearTimeout;
-
-function defaultSetTimout() {
-    throw new Error('setTimeout has not been defined');
-}
-function defaultClearTimeout () {
-    throw new Error('clearTimeout has not been defined');
-}
-(function () {
-    try {
-        if (typeof setTimeout === 'function') {
-            cachedSetTimeout = setTimeout;
-        } else {
-            cachedSetTimeout = defaultSetTimout;
-        }
-    } catch (e) {
-        cachedSetTimeout = defaultSetTimout;
-    }
-    try {
-        if (typeof clearTimeout === 'function') {
-            cachedClearTimeout = clearTimeout;
-        } else {
-            cachedClearTimeout = defaultClearTimeout;
-        }
-    } catch (e) {
-        cachedClearTimeout = defaultClearTimeout;
-    }
-} ())
-function runTimeout(fun) {
-    if (cachedSetTimeout === setTimeout) {
-        //normal enviroments in sane situations
-        return setTimeout(fun, 0);
-    }
-    // if setTimeout wasn't available but was latter defined
-    if ((cachedSetTimeout === defaultSetTimout || !cachedSetTimeout) && setTimeout) {
-        cachedSetTimeout = setTimeout;
-        return setTimeout(fun, 0);
-    }
-    try {
-        // when when somebody has screwed with setTimeout but no I.E. maddness
-        return cachedSetTimeout(fun, 0);
-    } catch(e){
-        try {
-            // When we are in I.E. but the script has been evaled so I.E. doesn't trust the global object when called normally
-            return cachedSetTimeout.call(null, fun, 0);
-        } catch(e){
-            // same as above but when it's a version of I.E. that must have the global object for 'this', hopfully our context correct otherwise it will throw a global error
-            return cachedSetTimeout.call(this, fun, 0);
-        }
-    }
-
-
-}
-function runClearTimeout(marker) {
-    if (cachedClearTimeout === clearTimeout) {
-        //normal enviroments in sane situations
-        return clearTimeout(marker);
-    }
-    // if clearTimeout wasn't available but was latter defined
-    if ((cachedClearTimeout === defaultClearTimeout || !cachedClearTimeout) && clearTimeout) {
-        cachedClearTimeout = clearTimeout;
-        return clearTimeout(marker);
-    }
-    try {
-        // when when somebody has screwed with setTimeout but no I.E. maddness
-        return cachedClearTimeout(marker);
-    } catch (e){
-        try {
-            // When we are in I.E. but the script has been evaled so I.E. doesn't  trust the global object when called normally
-            return cachedClearTimeout.call(null, marker);
-        } catch (e){
-            // same as above but when it's a version of I.E. that must have the global object for 'this', hopfully our context correct otherwise it will throw a global error.
-            // Some versions of I.E. have different rules for clearTimeout vs setTimeout
-            return cachedClearTimeout.call(this, marker);
-        }
-    }
-
-
-
-}
-var queue = [];
-var draining = false;
-var currentQueue;
-var queueIndex = -1;
-
-function cleanUpNextTick() {
-    if (!draining || !currentQueue) {
-        return;
-    }
-    draining = false;
-    if (currentQueue.length) {
-        queue = currentQueue.concat(queue);
-    } else {
-        queueIndex = -1;
-    }
-    if (queue.length) {
-        drainQueue();
-    }
-}
-
-function drainQueue() {
-    if (draining) {
-        return;
-    }
-    var timeout = runTimeout(cleanUpNextTick);
-    draining = true;
-
-    var len = queue.length;
-    while(len) {
-        currentQueue = queue;
-        queue = [];
-        while (++queueIndex < len) {
-            if (currentQueue) {
-                currentQueue[queueIndex].run();
-            }
-        }
-        queueIndex = -1;
-        len = queue.length;
-    }
-    currentQueue = null;
-    draining = false;
-    runClearTimeout(timeout);
-}
-
-process.nextTick = function (fun) {
-    var args = new Array(arguments.length - 1);
-    if (arguments.length > 1) {
-        for (var i = 1; i < arguments.length; i++) {
-            args[i - 1] = arguments[i];
-        }
-    }
-    queue.push(new Item(fun, args));
-    if (queue.length === 1 && !draining) {
-        runTimeout(drainQueue);
-    }
-};
-
-// v8 likes predictible objects
-function Item(fun, array) {
-    this.fun = fun;
-    this.array = array;
-}
-Item.prototype.run = function () {
-    this.fun.apply(null, this.array);
-};
-process.title = 'browser';
-process.browser = true;
-process.env = {};
-process.argv = [];
-process.version = ''; // empty string to avoid regexp issues
-process.versions = {};
-
-function noop() {}
-
-process.on = noop;
-process.addListener = noop;
-process.once = noop;
-process.off = noop;
-process.removeListener = noop;
-process.removeAllListeners = noop;
-process.emit = noop;
-process.prependListener = noop;
-process.prependOnceListener = noop;
-
-process.listeners = function (name) { return [] }
-
-process.binding = function (name) {
-    throw new Error('process.binding is not supported');
-};
-
-process.cwd = function () { return '/' };
-process.chdir = function (dir) {
-    throw new Error('process.chdir is not supported');
-};
-process.umask = function() { return 0; };
-
-},{}],26:[function(require,module,exports){
+},{"assert":24,"global/document":18,"global/window":19}],26:[function(require,module,exports){
 (function (global){
 /*! *****************************************************************************
 Copyright (c) Microsoft Corporation. All rights reserved.
@@ -51111,7 +51268,7 @@ module.exports.update = function (fromNode, toNode, opts) {
   }
 }
 
-},{"./update-events.js":28,"bel":13,"morphdom":22}],28:[function(require,module,exports){
+},{"./update-events.js":28,"bel":13,"morphdom":23}],28:[function(require,module,exports){
 module.exports = [
   // attribute events (can be set with attributes)
   'onclick',
@@ -51165,6 +51322,38 @@ const yo = require('yo-yo')
 
 
 document.getElementById('header').appendChild(require('./header.js'))
+
+document.getElementById('main-container').appendChild(yo`<div>
+    <h1><a id="Vinariam_0"></a>Vinariam</h1>
+    <p><img src="https://www.raspberrypi.org/app/uploads/2017/06/Powered-by-Raspberry-Pi-Logo_Outline-Colour-Screen-500x153.png" alt=""></p>
+    <p>Vinariam es un sistema de prestamo de equipos para estudiantes sencillo y veloz.</p>
+    <ul>
+    <li>Basado en Web</li>
+    <li>Interfaz sencilla</li>
+    <li>Magic</li>
+    </ul>
+    <h2><a id="Instalacin_11"></a>Instalación</h2>
+    <ol>
+    <li>
+    <p>Primero clone el proyecto de su respectivo repositorio y luego dirijace al directorio del mismo</p>
+    <pre><code class="language-bash">git <span class="hljs-built_in">clone</span> https://github.com/jorgelserve/conmutacion.git &amp;&amp; <span class="hljs-built_in">cd</span> conmutacion
+    </code></pre>
+    </li>
+    <li>
+    <p>Instale las dependencias</p>
+    <pre><code class="language-bash">npm install
+    </code></pre>
+    </li>
+    <li>
+    <p>Ejecute el programa</p>
+    <pre><code class="language-bash">npm run build &amp;&amp; npm start
+    </code></pre>
+    </li>
+    </ol>
+    <h1><a id="Autor_26"></a>Autor</h1>
+    <p><a href="https://github.com/jorgelserve">Jorge Luis Serna Velasquez</a></p>
+</div>
+`)
 
 },{"./header.js":29,"yo-yo":27}],31:[function(require,module,exports){
 const firebase = require('firebase')
@@ -51234,7 +51423,36 @@ socket.on('test', (data) => {
 							updates[`/${snapshot.val().id}/equipos`] = textarea1.value
 							firebase.database().ref().update(updates)
 							alert('Préstamo realizado satisfactoriamente')
-							return empty(container)
+							return empty(container).appendChild(yo`<div>
+                                <h1><a id="Vinariam_0"></a>Vinariam</h1>
+                                <p><img src="https://www.raspberrypi.org/app/uploads/2017/06/Powered-by-Raspberry-Pi-Logo_Outline-Colour-Screen-500x153.png" alt=""></p>
+                                <p>Vinariam es un sistema de prestamo de equipos para estudiantes sencillo y veloz.</p>
+                                <ul>
+                                <li>Basado en Web</li>
+                                <li>Interfaz sencilla</li>
+                                <li>Magic</li>
+                                </ul>
+                                <h2><a id="Instalacin_11"></a>Instalación</h2>
+                                <ol>
+                                <li>
+                                <p>Primero clone el proyecto de su respectivo repositorio y luego dirijace al directorio del mismo</p>
+                                <pre><code class="language-bash">git <span class="hljs-built_in">clone</span> https://github.com/jorgelserve/conmutacion.git &amp;&amp; <span class="hljs-built_in">cd</span> conmutacion
+                                </code></pre>
+                                </li>
+                                <li>
+                                <p>Instale las dependencias</p>
+                                <pre><code class="language-bash">npm install
+                                </code></pre>
+                                </li>
+                                <li>
+                                <p>Ejecute el programa</p>
+                                <pre><code class="language-bash">npm run build &amp;&amp; npm start
+                                </code></pre>
+                                </li>
+                                </ol>
+                                <h1><a id="Autor_26"></a>Autor</h1>
+                                <p><a href="https://github.com/jorgelserve">Jorge Luis Serna Velasquez</a></p>
+                            </div>`)
 						}
 					}}>Prestar</a>
 			    </form>
@@ -51265,4 +51483,4 @@ socket.on('test', (data) => {
  //  </div>
         
 
-},{"./homepage":30,"empty-element":15,"firebase":16,"yo-yo":27}]},{},[31]);
+},{"./homepage":30,"empty-element":16,"firebase":17,"yo-yo":27}]},{},[31]);
