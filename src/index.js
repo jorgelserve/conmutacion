@@ -23,7 +23,7 @@ const socket = io.connect('/', {
 
 
 socket.on('test', (data) => {
-	return firebase.database().ref(`/${data.id}`).once('value').then(function(snapshot) {
+	return firebase.database().ref('/' + data.id).once('value').then(function(snapshot) {
 		console.log(snapshot.val())
 		if (snapshot.val() != null) {
 			var container = document.getElementById('main-container')

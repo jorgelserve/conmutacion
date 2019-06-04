@@ -8,5 +8,5 @@ while True:
     line = arduino.readline()
     line = line[0:-1]
     if len(line) > 0:
-        print(line[0:-1])
-        r = requests.get('localhost:3000/api/' + line)
+        print(line)
+        r = requests.get("http://vinariam.herokuapp.com/api/" + str(line))
