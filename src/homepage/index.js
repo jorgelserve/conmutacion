@@ -16,7 +16,7 @@ document.getElementById('main-container').appendChild(yo`<div>
     <ol>
     <li>
     <p>Primero clone el proyecto de su respectivo repositorio y luego dirijace al directorio del mismo</p>
-    <pre><code class="language-bash">git <span class="hljs-built_in">clone</span> https://github.com/jorgelserve/conmutacion.git &amp;&amp; <span class="hljs-built_in">cd</span> conmutacion
+    <pre><code class="language-bash">git <span class="hljs-built_in">clone</span> https://github.com/jorgelserve/conmutacion.git && <span class="hljs-built_in">cd</span> conmutacion
     </code></pre>
     </li>
     <li>
@@ -26,7 +26,7 @@ document.getElementById('main-container').appendChild(yo`<div>
     </li>
     <li>
     <p>Ejecute el programa</p>
-    <pre><code class="language-bash">npm run build &amp;&amp; npm start
+    <pre><code class="language-bash">npm run build && npm start
     </code></pre>
     </li>
     </ol>
