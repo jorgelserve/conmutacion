@@ -60,7 +60,7 @@ socket.on('test', (data) => {
 					</div>
 					<a class="waves-effect waves-light btn" onclick=${function () {
 						var textarea1 = document.getElementById('textarea1')
-						if (textarea1.value.length) {
+						if (true) {
 							var updates = {};
 							updates[`/${snapshot.val().id}/equipos`] = textarea1.value
 							firebase.database().ref().update(updates)
@@ -78,7 +78,7 @@ socket.on('test', (data) => {
                                 <ol>
                                 <li>
                                 <p>Primero clone el proyecto de su respectivo repositorio y luego dirijace al directorio del mismo</p>
-                                <pre><code class="language-bash">git <span class="hljs-built_in">clone</span> https://github.com/jorgelserve/conmutacion.git &amp;&amp; <span class="hljs-built_in">cd</span> conmutacion
+                                <pre><code class="language-bash">git <span class="hljs-built_in">clone</span> https://github.com/jorgelserve/conmutacion.git && <span class="hljs-built_in">cd</span> conmutacion
                                 </code></pre>
                                 </li>
                                 <li>
@@ -88,7 +88,7 @@ socket.on('test', (data) => {
                                 </li>
                                 <li>
                                 <p>Ejecute el programa</p>
-                                <pre><code class="language-bash">npm run build &amp;&amp; npm start
+                                <pre><code class="language-bash">npm run build && npm start
                                 </code></pre>
                                 </li>
                                 </ol>
