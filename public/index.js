@@ -51167,36 +51167,35 @@ const yo = require('yo-yo')
 document.getElementById('header').appendChild(require('./header.js'))
 
 document.getElementById('main-container').appendChild(yo`<div>
-    <h1><a id="Vinariam_0"></a>Vinariam</h1>
-    <p><img src="https://www.raspberrypi.org/app/uploads/2017/06/Powered-by-Raspberry-Pi-Logo_Outline-Colour-Screen-500x153.png" alt=""></p>
-    <p>Vinariam es un sistema de prestamo de equipos para estudiantes sencillo y veloz.</p>
-    <ul>
-    <li>Basado en Web</li>
-    <li>Interfaz sencilla</li>
-    <li>Magic</li>
-    </ul>
-    <h2><a id="Instalacin_11"></a>Instalación</h2>
-    <ol>
-    <li>
-    <p>Primero clone el proyecto de su respectivo repositorio y luego dirijace al directorio del mismo</p>
-    <pre><code class="language-bash">git <span class="hljs-built_in">clone</span> https://github.com/jorgelserve/conmutacion.git &amp;&amp; <span class="hljs-built_in">cd</span> conmutacion
-    </code></pre>
-    </li>
-    <li>
-    <p>Instale las dependencias</p>
-    <pre><code class="language-bash">npm install
-    </code></pre>
-    </li>
-    <li>
-    <p>Ejecute el programa</p>
-    <pre><code class="language-bash">npm run build &amp;&amp; npm start
-    </code></pre>
-    </li>
-    </ol>
-    <h1><a id="Autor_26"></a>Autor</h1>
-    <p><a href="https://github.com/jorgelserve">Jorge Luis Serna Velasquez</a></p>
-</div>
-`)
+			<h1><a id="Vinariam_1"></a>Vinariam</h1>
+		<p><img src="https://www.raspberrypi.org/app/uploads/2017/06/Powered-by-Raspberry-Pi-Logo_Outline-Colour-Screen-500x153.png" alt="" /></p>
+		<p>Vinariam es un sistema de préstamo de equipos para estudiantes sencillo y veloz.</p>
+		<ul>
+			<li>Basado en Web</li>
+			<li>Interfaz sencilla</li>
+			<li>Magic</li>
+		</ul>
+		<h2><a id="Como_empezar_12"></a>Como empezar</h2>
+		<ol>
+			<li>
+				<p>Tener Python instalado con los paquetes <code>requests</code> y <code>serial</code>, puedes ver los pasos para instalarlos en el siguiente <a href="https://github.com/jorgelserve/conmutacion/wiki/Como-instalar-request-y-serial-en-Python">link</a></p>
+			</li>
+			<li>
+				<p>clonar el proyecto de su respectivo repositorio y luego dirijace al directorio del mismo</p>
+				<pre></pre>
+			</li>
+			<li>
+				<p>Suba el código de lector de tarjetas a una plataforma ARDUINO compatible que se encuentra en <a href="LectorRFID/LectorRFID.ino">LectorRFID/LectorRFID.ino</a></p>
+			</li>
+			<li>
+				<p>Conecte el Arduino al raspberry y ejecute el código de python para leer serial.</p>
+				<pre></pre>
+			</li>
+			<li>
+				<p>Ingrese al este <a href="http://vinariam.herokuapp.com">link</a> para visualizar los datos</p>
+			</li>
+		</ol>
+	</div>`)
 
 },{"./header.js":29,"yo-yo":27}],31:[function(require,module,exports){
 const firebase = require('firebase')
@@ -51224,7 +51223,7 @@ const socket = io.connect('/', {
 
 
 socket.on('test', (data) => {
-	return firebase.database().ref(`/${data.id}`).once('value').then(function(snapshot) {
+	return firebase.database().ref('/' + data.id).once('value').then(function(snapshot) {
 		console.log(snapshot.val())
 		if (snapshot.val() != null) {
 			var container = document.getElementById('main-container')
@@ -51261,7 +51260,7 @@ socket.on('test', (data) => {
 					</div>
 					<a class="waves-effect waves-light btn" onclick=${function () {
 						var textarea1 = document.getElementById('textarea1')
-						if (textarea1.value.length) {
+						if (true) {
 							var updates = {};
 							updates[`/${snapshot.val().id}/equipos`] = textarea1.value
 							firebase.database().ref().update(updates)
@@ -51279,7 +51278,7 @@ socket.on('test', (data) => {
                                 <ol>
                                 <li>
                                 <p>Primero clone el proyecto de su respectivo repositorio y luego dirijace al directorio del mismo</p>
-                                <pre><code class="language-bash">git <span class="hljs-built_in">clone</span> https://github.com/jorgelserve/conmutacion.git &amp;&amp; <span class="hljs-built_in">cd</span> conmutacion
+                                <pre><code class="language-bash">git <span class="hljs-built_in">clone</span> https://github.com/jorgelserve/conmutacion.git && <span class="hljs-built_in">cd</span> conmutacion
                                 </code></pre>
                                 </li>
                                 <li>
@@ -51289,7 +51288,7 @@ socket.on('test', (data) => {
                                 </li>
                                 <li>
                                 <p>Ejecute el programa</p>
-                                <pre><code class="language-bash">npm run build &amp;&amp; npm start
+                                <pre><code class="language-bash">npm run build && npm start
                                 </code></pre>
                                 </li>
                                 </ol>
