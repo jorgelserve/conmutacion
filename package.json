@@ -19,7 +19,7 @@
   "homepage": "https://github.com/jorgelserve/conmutacion#readme",
   "dependencies": {
     "empty-element": "^1.0.0",
-    "express": "^4.17.0",
+    "express": "^4.17.3",
     "firebase": "^6.0.2",
     "http": "0.0.0",
     "materialize-css": "1.0.0",
